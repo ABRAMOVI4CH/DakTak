@@ -370,7 +370,7 @@ function resize() {
 
 function connectToServer() {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const socket = new WebSocket(`${protocol}//${window.location.hostname}:3001`);
+  const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
   network.socket = socket;
 
   socket.addEventListener("open", () => {

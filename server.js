@@ -1,6 +1,58 @@
+import { createServer } from "http";
+import { readFile } from "fs/promises";
+import { extname, join } from "path";
+import { fileURLToPath } from "url";
 import { WebSocketServer } from "ws";
 
 const PORT = Number(process.env.PORT ?? 3001);
+const DIST = join(fileURLToPath(new URL(".", import.meta.url)), "dist");
+
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "application/javascript",
+  ".css": "text/css",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+};
+
+const httpServer = createServer(async (req, res) => {
+  let filePath = join(DIST, req.url === "/" ? "index.html" : req.url);
+  try {
+    const data = await readFile(filePath);
+    res.writeHead(200, { "Content-Type": MIME[extname(filePath)] ?? "application/octet-stream" });
+    res.end(data);
+  } catch {
+    try {
+      const data = await readFile(join(DIST, "index.html"));
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(data);
+    } catch {
+      res.writeHead(404);
+      res.end("Not found");
+    }
+  }
+});
+
+const wss = new WebSocketServer({ noServer: true });
+
+httpServer.on("upgrade", (req, socket, head) => {
+  if (req.url !== "/ws") {
+    socket.destroy();
+    return;
+  }
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    wss.emit("connection", ws, req);
+  });
+});
+
+httpServer.listen(PORT, () => {
+  console.log(`DakTak running on http://localhost:${PORT}`);
+});
+
 const tickRate = 60;
 const sendRate = 30;
 const matchPointLimit = 10;
@@ -35,7 +87,6 @@ let lastGoal = null;
 let lastClientId = 0;
 
 const clients = new Map();
-const wss = new WebSocketServer({ port: PORT });
 
 wss.on("connection", (socket) => {
   const id = ++lastClientId;
@@ -96,8 +147,6 @@ wss.on("connection", (socket) => {
 
 setInterval(() => updateGame(1 / tickRate), 1000 / tickRate);
 setInterval(broadcastState, 1000 / sendRate);
-
-console.log(`DacTac server running on ws://localhost:${PORT}`);
 
 function createPlayer(color, type, x, y, z, corner = null) {
   return {

@@ -1,0 +1,5 @@
+example.com {
+    @ws path /ws
+    reverse_proxy @ws app:3001
+    reverse_proxy app:4173
+}
