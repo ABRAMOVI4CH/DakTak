@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>DacTac 3D</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="game-shell" aria-label="DacTac 3D">
+      <section class="hud" aria-label="Статус">
+        <div class="scoreboard">
+          <strong id="score"><span class="score-side score-red"><span class="team-dot team-dot-red"></span>Красные 0</span><span class="score-divider">:</span><span class="score-side score-blue">0 Синие<span class="team-dot team-dot-blue"></span></span></strong>
+        </div>
+      </section>
+      <canvas id="game" aria-label="3D карта"></canvas>
+      <section id="joinScreen" class="join-screen" aria-label="Выбор игрока">
+        <div class="join-panel">
+          <div class="join-title">Выбери игрока</div>
+          <div class="join-grid">
+            <button class="join-button color-blue" type="button" data-join-player="blue">
+              <span>1</span>
+              Синий
+            </button>
+            <button class="join-button color-red" type="button" data-join-player="red">
+              <span>2</span>
+              Красный
+            </button>
+            <button class="join-button color-blue" type="button" data-join-player="blueTower">
+              <span>3</span>
+              Синий башня
+            </button>
+            <button class="join-button color-red" type="button" data-join-player="redTower">
+              <span>4</span>
+              Красный башня
+            </button>
+          </div>
+          <div id="joinStatus" class="join-status">Подключение к серверу...</div>
+        </div>
+      </section>
+      <div id="multiplier" class="multiplier" aria-live="polite">*2 очки</div>
+      <div id="lookPad" class="look-pad" aria-label="Панель обзора"></div>
+
+      <section class="controls" aria-label="Управление">
+        <div id="joystick" class="joystick" aria-label="Джойстик">
+          <div id="stick" class="stick"></div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="script.js"></script>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "dactac",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "server": "node server.js",
+    "dev:net": "concurrently \"npm run server\" \"npm run dev\"",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "preview:net": "concurrently \"npm run server\" \"npm run preview\""
+  },
+  "dependencies": {
+    "three": "^0.165.0",
+    "vite": "^8.1.0",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}
