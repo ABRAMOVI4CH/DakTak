@@ -183,6 +183,19 @@ addTowerFlashlight(players.redTower);
 connectToServer();
 
 const clock = new THREE.Clock();
+
+const cheat = { buffer: "", tiny: false, targetScale: 1, currentScale: 1 };
+document.addEventListener("keydown", (e) => {
+  if (!player.hasJoined) return;
+  cheat.buffer += e.key;
+  if (cheat.buffer.length > 3) cheat.buffer = cheat.buffer.slice(-3);
+  if (cheat.buffer === "228") {
+    cheat.tiny = !cheat.tiny;
+    cheat.targetScale = cheat.tiny ? 0.07 : 1;
+    cheat.buffer = "";
+  }
+});
+
 const input = {
   pointerId: null,
   x: 0,
@@ -299,6 +312,7 @@ function animate() {
   syncAvatarVisibility();
   updatePlayer(delta);
   interpolateServerPlayers(delta);
+  updateCheatScale(delta);
   updateCamera(delta);
   updateTowerFlashlights();
   if (!network.connected) {
@@ -935,6 +949,11 @@ function setActivePlayer(id, hasJoined = player.hasJoined) {
     musicStarted = true;
     bgMusic.play().catch(() => {});
   }
+
+  cheat.tiny = false;
+  cheat.targetScale = 1;
+  cheat.currentScale = 1;
+  players[id].avatar.scale.set(1, 1, 1);
 
   joystickEl.classList.toggle("team-blue", activePlayer.color === "blue");
   joystickEl.classList.toggle("team-red", activePlayer.color === "red");
@@ -1843,6 +1862,13 @@ function createLWallMesh(points, height, material) {
   wall.castShadow = false;
   wall.receiveShadow = true;
   return wall;
+}
+
+function updateCheatScale(delta) {
+  if (!player.hasJoined) return;
+  cheat.currentScale += (cheat.targetScale - cheat.currentScale) * Math.min(delta * 8, 1);
+  const s = cheat.currentScale;
+  players[player.activeId].avatar.scale.set(s, s, s);
 }
 
 function clamp(value, min, max) {
