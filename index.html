@@ -10,9 +10,21 @@
     <main class="game-shell" aria-label="DacTac 3D">
       <section class="hud" aria-label="Статус">
         <div class="scoreboard">
-          <strong id="score"><span class="score-side score-red"><span class="team-dot team-dot-red"></span>Красные 0</span><span class="score-divider">:</span><span class="score-side score-blue">0 Синие<span class="team-dot team-dot-blue"></span></span></strong>
+          <div class="score-team score-team-red" id="hudTeamRed">
+            <span class="score-team-name">КРАСНЫЕ</span>
+            <span class="score-num" id="scoreRed">0</span>
+            <span class="score-yours" id="yoursRed">ВЫ</span>
+          </div>
+          <div class="score-mid">:</div>
+          <div class="score-team score-team-blue" id="hudTeamBlue">
+            <span class="score-yours" id="yoursBlue">ВЫ</span>
+            <span class="score-num" id="scoreBlue">0</span>
+            <span class="score-team-name">СИНИЕ</span>
+          </div>
         </div>
+        <div id="teamBadge" class="team-badge"></div>
       </section>
+      <div id="pingDisplay" class="ping-display"></div>
       <canvas id="game" aria-label="3D карта"></canvas>
       <div id="preloader" class="preloader" aria-live="polite">
         <div class="preloader-bg"></div>

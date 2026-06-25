@@ -17,6 +17,7 @@ const MIME = {
   ".ico": "image/x-icon",
   ".woff2": "font/woff2",
   ".woff": "font/woff",
+  ".mp3": "audio/mpeg",
 };
 
 const httpServer = createServer(async (req, res) => {
@@ -96,6 +97,7 @@ wss.on("connection", (socket) => {
     activeId: null,
     input: { seq: 0, x: 0, y: 0, isRunning: true },
     lastProcessedSeq: 0,
+    lastMessageAt: Date.now(),
   };
 
   clients.set(socket, client);
@@ -103,6 +105,7 @@ wss.on("connection", (socket) => {
   sendState(socket);
 
   socket.on("message", (raw) => {
+    client.lastMessageAt = Date.now();
     let message;
     try {
       message = JSON.parse(raw);
@@ -121,7 +124,10 @@ wss.on("connection", (socket) => {
       const slot = players[client.activeId];
       if (!slot) return;
 
-      slot.lookYaw = clamp(Number(message.lookYaw) || 0, -0.95, 0.95);
+      let yaw = Number(message.lookYaw) || 0;
+      yaw = ((yaw % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      if (yaw > Math.PI) yaw -= Math.PI * 2;
+      slot.lookYaw = yaw;
       slot.lookPitch = clamp(Number(message.lookPitch) || 0, -1.2, 0.42);
     }
 
@@ -147,6 +153,18 @@ wss.on("connection", (socket) => {
 
 setInterval(() => updateGame(1 / tickRate), 1000 / tickRate);
 setInterval(broadcastState, 1000 / sendRate);
+setInterval(kickInactiveClients, 2000);
+
+function kickInactiveClients() {
+  const now = Date.now();
+  clients.forEach((client, socket) => {
+    if (!client.activeId) return;
+    if (now - client.lastMessageAt > 10000) {
+      send(socket, { type: "kicked", reason: "inactivity" });
+      socket.close();
+    }
+  });
+}
 
 function createPlayer(color, type, x, y, z, corner = null) {
   return {
@@ -188,9 +206,14 @@ function updateGame(delta) {
 
     const maxSpeed = client.input.isRunning ? 7.2 : 4.2;
     const speed = client.input.x || client.input.y ? maxSpeed * Math.min(Math.hypot(client.input.x, client.input.y), 1) : 0;
-    const inputDirection = getControlDirection(slot);
-    const velocityX = client.input.x * inputDirection * speed;
-    const velocityZ = client.input.y * inputDirection * speed;
+    const lookDir = getSlotLookDirection(slot);
+    const fwdX = lookDir.x;
+    const fwdZ = lookDir.z;
+    const moveX = (-client.input.y) * fwdX - client.input.x * fwdZ;
+    const moveZ = (-client.input.y) * fwdZ + client.input.x * fwdX;
+    const moveLen = Math.hypot(moveX, moveZ);
+    const velocityX = moveLen > 0.001 ? (moveX / moveLen) * speed : 0;
+    const velocityZ = moveLen > 0.001 ? (moveZ / moveLen) * speed : 0;
     const nextPosition = movePlayerWithBarriers(slot, slot.x, slot.z, velocityX * delta, velocityZ * delta);
 
     slot.x = nextPosition.x;

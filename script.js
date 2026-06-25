@@ -3,7 +3,12 @@ import * as THREE from "three";
 const canvas = document.querySelector("#game");
 const speedEl = document.querySelector("#speed");
 const positionEl = document.querySelector("#position");
-const scoreEl = document.querySelector("#score");
+const scoreRedEl = document.querySelector("#scoreRed");
+const scoreBlueEl = document.querySelector("#scoreBlue");
+const hudTeamRedEl = document.querySelector("#hudTeamRed");
+const hudTeamBlueEl = document.querySelector("#hudTeamBlue");
+const teamBadgeEl = document.querySelector("#teamBadge");
+const pingEl = document.querySelector("#pingDisplay");
 const joystickEl = document.querySelector("#joystick");
 const stickEl = document.querySelector("#stick");
 const lookPadEl = document.querySelector("#lookPad");
@@ -13,6 +18,18 @@ const joinStatusEl = document.querySelector("#joinStatus");
 const joinButtons = document.querySelectorAll("[data-join-player]");
 const preloaderEl = document.querySelector("#preloader");
 const preloaderStatusEl = document.querySelector("#preloaderStatus");
+
+const pingTracker = {
+  sentTimes: new Map(),
+  value: null,
+};
+
+const bgMusic = new Audio("/music.mp3");
+bgMusic.loop = true;
+bgMusic.volume = 0.55;
+let musicStarted = false;
+
+let wasKicked = false;
 
 const tileCount = 12;
 const tileSize = 2;
@@ -202,24 +219,26 @@ if (isDesktop) {
     if (!isPointerLocked || !player.hasJoined) return;
     const activePlayer = players[player.activeId];
     if (!activePlayer) return;
-    activePlayer.lookYaw = clamp(activePlayer.lookYaw - event.movementX * 0.004, -0.95, 0.95);
+    activePlayer.lookYaw -= event.movementX * 0.004;
+    activePlayer.lookYaw = ((activePlayer.lookYaw % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    if (activePlayer.lookYaw > Math.PI) activePlayer.lookYaw -= Math.PI * 2;
     activePlayer.lookPitch = clamp(activePlayer.lookPitch - event.movementY * 0.004, -1.2, 0.42);
     sendInputToServer();
   });
 
   document.addEventListener("keydown", (event) => {
     if (event.repeat) return;
-    if (event.key === "w" || event.key === "W" || event.key === "ArrowUp") keys.w = true;
-    if (event.key === "a" || event.key === "A" || event.key === "ArrowLeft") keys.a = true;
-    if (event.key === "s" || event.key === "S" || event.key === "ArrowDown") keys.s = true;
-    if (event.key === "d" || event.key === "D" || event.key === "ArrowRight") keys.d = true;
+    if (event.code === "KeyW" || event.code === "ArrowUp") keys.w = true;
+    if (event.code === "KeyA" || event.code === "ArrowLeft") keys.a = true;
+    if (event.code === "KeyS" || event.code === "ArrowDown") keys.s = true;
+    if (event.code === "KeyD" || event.code === "ArrowRight") keys.d = true;
   });
 
   document.addEventListener("keyup", (event) => {
-    if (event.key === "w" || event.key === "W" || event.key === "ArrowUp") keys.w = false;
-    if (event.key === "a" || event.key === "A" || event.key === "ArrowLeft") keys.a = false;
-    if (event.key === "s" || event.key === "S" || event.key === "ArrowDown") keys.s = false;
-    if (event.key === "d" || event.key === "D" || event.key === "ArrowRight") keys.d = false;
+    if (event.code === "KeyW" || event.code === "ArrowUp") keys.w = false;
+    if (event.code === "KeyA" || event.code === "ArrowLeft") keys.a = false;
+    if (event.code === "KeyS" || event.code === "ArrowDown") keys.s = false;
+    if (event.code === "KeyD" || event.code === "ArrowRight") keys.d = false;
   });
 } else {
   joystickEl.addEventListener("pointerdown", (event) => {
@@ -249,7 +268,9 @@ if (isDesktop) {
     const deltaY = event.clientY - lookInput.lastY;
     const activePlayer = players[player.activeId];
 
-    activePlayer.lookYaw = clamp(activePlayer.lookYaw - deltaX * 0.006, -0.95, 0.95);
+    activePlayer.lookYaw -= deltaX * 0.006;
+    activePlayer.lookYaw = ((activePlayer.lookYaw % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    if (activePlayer.lookYaw > Math.PI) activePlayer.lookYaw -= Math.PI * 2;
     activePlayer.lookPitch = clamp(activePlayer.lookPitch - deltaY * 0.006, -1.2, 0.42);
     lookInput.lastX = event.clientX;
     lookInput.lastY = event.clientY;
@@ -332,9 +353,17 @@ function updateDebugHud(activePlayer) {
 function applyInputLocally(slot, command, delta) {
   const maxSpeed = command.isRunning ? player.maxRunSpeed : player.maxWalkSpeed;
   const speed = command.y || command.x ? maxSpeed * Math.min(Math.hypot(command.x, command.y), 1) : 0;
-  const inputDirection = getControlDirection(slot);
+  const lookDir = getSlotLookDirection(slot);
+  const fwdX = lookDir.x;
+  const fwdZ = lookDir.z;
+  const moveX = (-command.y) * fwdX - command.x * fwdZ;
+  const moveZ = (-command.y) * fwdZ + command.x * fwdX;
+  const moveLen = Math.hypot(moveX, moveZ);
 
-  slot.velocity.set(command.x * inputDirection, command.y * inputDirection).multiplyScalar(speed);
+  slot.velocity.set(
+    moveLen > 0.001 ? (moveX / moveLen) * speed : 0,
+    moveLen > 0.001 ? (moveZ / moveLen) * speed : 0,
+  );
 
   const nextPosition = movePlayerWithBarriers(
     slot,
@@ -426,13 +455,18 @@ function connectToServer() {
 
   socket.addEventListener("open", () => {
     network.connected = true;
-    preloaderStatusEl.textContent = "Соединение установлено";
-    setTimeout(() => {
-      preloaderEl.classList.add("fade-out");
-      preloaderEl.addEventListener("transitionend", () => preloaderEl.remove(), { once: true });
+    if (preloaderEl) {
+      preloaderStatusEl.textContent = "Соединение установлено";
+      setTimeout(() => {
+        preloaderEl.classList.add("fade-out");
+        preloaderEl.addEventListener("transitionend", () => preloaderEl.remove(), { once: true });
+        joinScreenEl.classList.remove("hidden");
+        joinStatusEl.textContent = "Выбери свободного игрока";
+      }, 500);
+    } else {
       joinScreenEl.classList.remove("hidden");
       joinStatusEl.textContent = "Выбери свободного игрока";
-    }, 500);
+    }
   });
 
   socket.addEventListener("message", (event) => {
@@ -440,6 +474,13 @@ function connectToServer() {
     try {
       message = JSON.parse(event.data);
     } catch {
+      return;
+    }
+
+    if (message.type === "kicked") {
+      wasKicked = true;
+      player.hasJoined = false;
+      updateTeamBadge();
       return;
     }
 
@@ -464,13 +505,30 @@ function connectToServer() {
 
   socket.addEventListener("close", () => {
     network.connected = false;
+    pingTracker.value = null;
+    updatePingDisplay();
+
     if (preloaderEl) {
       preloaderStatusEl.textContent = "Сервер недоступен";
       preloaderStatusEl.classList.add("error");
-    } else {
-      joinStatusEl.textContent = "Сервер отключён";
-      if (!player.hasJoined) joinScreenEl.classList.remove("hidden");
+      return;
     }
+
+    if (wasKicked) {
+      wasKicked = false;
+      player.hasJoined = false;
+      updateTeamBadge();
+      joinStatusEl.textContent = "Вас отключили за неактивность — выбери игрока";
+    } else if (player.hasJoined) {
+      player.hasJoined = false;
+      updateTeamBadge();
+      joinStatusEl.textContent = "Соединение потеряно";
+    } else {
+      joinStatusEl.textContent = "Сервер недоступен";
+    }
+
+    joinScreenEl.classList.remove("hidden");
+    setTimeout(connectToServer, 2000);
   });
 
   socket.addEventListener("error", () => {
@@ -506,9 +564,16 @@ function sendInputToServer(command = null) {
     lookPitch: activePlayer.lookPitch,
   };
 
+  const seq = payload.seq;
+  pingTracker.sentTimes.set(seq, performance.now());
+  if (pingTracker.sentTimes.size > 60) {
+    const oldest = [...pingTracker.sentTimes.keys()].sort((a, b) => a - b)[0];
+    pingTracker.sentTimes.delete(oldest);
+  }
+
   network.socket.send(JSON.stringify({
     type: "input",
-    seq: payload.seq,
+    seq,
     x: payload.x,
     y: payload.y,
     isRunning: payload.isRunning,
@@ -518,6 +583,15 @@ function sendInputToServer(command = null) {
 }
 
 function applyServerState(state) {
+  if (state.ackSeq != null) {
+    const sentAt = pingTracker.sentTimes.get(state.ackSeq);
+    if (sentAt != null) {
+      pingTracker.value = Math.round(performance.now() - sentAt);
+      pingTracker.sentTimes.delete(state.ackSeq);
+      updatePingDisplay();
+    }
+  }
+
   if (state.activeId && state.activeId !== player.activeId) {
     setActivePlayer(state.activeId, true);
   }
@@ -829,6 +903,11 @@ function setActivePlayer(id, hasJoined = player.hasJoined) {
   player.hasJoined = hasJoined;
   const activePlayer = players[id];
 
+  if (hasJoined && !musicStarted) {
+    musicStarted = true;
+    bgMusic.play().catch(() => {});
+  }
+
   joystickEl.classList.toggle("team-blue", activePlayer.color === "blue");
   joystickEl.classList.toggle("team-red", activePlayer.color === "red");
   stickEl.classList.toggle("team-blue", activePlayer.color === "blue");
@@ -836,6 +915,43 @@ function setActivePlayer(id, hasJoined = player.hasJoined) {
   lookPadEl.classList.toggle("team-blue", activePlayer.color === "blue");
   lookPadEl.classList.toggle("team-red", activePlayer.color === "red");
   syncAvatarVisibility();
+  updateTeamBadge();
+}
+
+function updateTeamBadge() {
+  if (!teamBadgeEl) return;
+  const activePlayer = players[player.activeId];
+  if (!player.hasJoined || !activePlayer) {
+    teamBadgeEl.classList.remove("visible");
+    hudTeamRedEl?.classList.remove("is-yours");
+    hudTeamBlueEl?.classList.remove("is-yours");
+    return;
+  }
+
+  const labels = { blue: "Синий", red: "Красный", blueTower: "Башня синих", redTower: "Башня красных" };
+  const label = labels[player.activeId] ?? activePlayer.label;
+  const isBlue = activePlayer.color === "blue";
+
+  teamBadgeEl.classList.remove("badge-blue", "badge-red");
+  teamBadgeEl.classList.add(isBlue ? "badge-blue" : "badge-red");
+  teamBadgeEl.innerHTML = `<span class="team-badge-dot"></span>Вы — ${label}`;
+  teamBadgeEl.classList.add("visible");
+
+  hudTeamRedEl?.classList.toggle("is-yours", activePlayer.color === "red");
+  hudTeamBlueEl?.classList.toggle("is-yours", activePlayer.color === "blue");
+}
+
+function updatePingDisplay() {
+  if (!pingEl) return;
+  if (!network.connected || pingTracker.value === null) {
+    pingEl.textContent = "";
+    pingEl.className = "ping-display";
+    return;
+  }
+
+  const ms = pingTracker.value;
+  pingEl.textContent = `${ms} ms`;
+  pingEl.className = `ping-display ${ms < 60 ? "ping-good" : ms < 120 ? "ping-ok" : "ping-bad"}`;
 }
 
 function updateJoinButtons(slots) {
@@ -1211,7 +1327,8 @@ function getGoalEventForPlayer(scoringPlayer, opponent) {
 }
 
 function updateScore() {
-  scoreEl.innerHTML = `<span class="score-side score-red"><span class="team-dot team-dot-red"></span>Красные ${score.red}</span><span class="score-divider">:</span><span class="score-side score-blue">${score.blue} Синие<span class="team-dot team-dot-blue"></span></span>`;
+  if (scoreRedEl) scoreRedEl.textContent = score.red;
+  if (scoreBlueEl) scoreBlueEl.textContent = score.blue;
 }
 
 function isPointInPlayerShadow(x, z, targetPlayer, activePlayer) {
