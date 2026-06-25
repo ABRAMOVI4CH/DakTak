@@ -175,48 +175,88 @@ const lookInput = {
   lastY: 0,
 };
 
+const isDesktop = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+const keys = { w: false, a: false, s: false, d: false };
+const pointerHintEl = document.querySelector("#pointerHint");
+let isPointerLocked = false;
+
 joinButtons.forEach((button) => {
   button.addEventListener("click", () => {
     requestActivePlayer(button.dataset.joinPlayer);
   });
 });
 
-joystickEl.addEventListener("pointerdown", (event) => {
-  input.pointerId = event.pointerId;
-  joystickEl.setPointerCapture(event.pointerId);
-  updateJoystick(event);
-});
+if (isDesktop) {
+  canvas.addEventListener("click", () => {
+    if (player.hasJoined) canvas.requestPointerLock();
+  });
 
-joystickEl.addEventListener("pointermove", (event) => {
-  if (event.pointerId !== input.pointerId) return;
-  updateJoystick(event);
-});
+  document.addEventListener("pointerlockchange", () => {
+    isPointerLocked = document.pointerLockElement === canvas;
+    pointerHintEl?.classList.toggle("locked", isPointerLocked);
+  });
 
-joystickEl.addEventListener("pointerup", resetJoystick);
-joystickEl.addEventListener("pointercancel", resetJoystick);
+  document.addEventListener("mousemove", (event) => {
+    if (!isPointerLocked || !player.hasJoined) return;
+    const activePlayer = players[player.activeId];
+    if (!activePlayer) return;
+    activePlayer.lookYaw = clamp(activePlayer.lookYaw - event.movementX * 0.004, -0.95, 0.95);
+    activePlayer.lookPitch = clamp(activePlayer.lookPitch - event.movementY * 0.004, -1.2, 0.42);
+    sendInputToServer();
+  });
 
-lookPadEl.addEventListener("pointerdown", (event) => {
-  lookInput.pointerId = event.pointerId;
-  lookInput.lastX = event.clientX;
-  lookInput.lastY = event.clientY;
-  lookPadEl.setPointerCapture(event.pointerId);
-});
+  document.addEventListener("keydown", (event) => {
+    if (event.repeat) return;
+    if (event.key === "w" || event.key === "W" || event.key === "ArrowUp") keys.w = true;
+    if (event.key === "a" || event.key === "A" || event.key === "ArrowLeft") keys.a = true;
+    if (event.key === "s" || event.key === "S" || event.key === "ArrowDown") keys.s = true;
+    if (event.key === "d" || event.key === "D" || event.key === "ArrowRight") keys.d = true;
+  });
 
-lookPadEl.addEventListener("pointermove", (event) => {
-  if (event.pointerId !== lookInput.pointerId) return;
-  const deltaX = event.clientX - lookInput.lastX;
-  const deltaY = event.clientY - lookInput.lastY;
-  const activePlayer = players[player.activeId];
+  document.addEventListener("keyup", (event) => {
+    if (event.key === "w" || event.key === "W" || event.key === "ArrowUp") keys.w = false;
+    if (event.key === "a" || event.key === "A" || event.key === "ArrowLeft") keys.a = false;
+    if (event.key === "s" || event.key === "S" || event.key === "ArrowDown") keys.s = false;
+    if (event.key === "d" || event.key === "D" || event.key === "ArrowRight") keys.d = false;
+  });
+} else {
+  joystickEl.addEventListener("pointerdown", (event) => {
+    input.pointerId = event.pointerId;
+    joystickEl.setPointerCapture(event.pointerId);
+    updateJoystick(event);
+  });
 
-  activePlayer.lookYaw = clamp(activePlayer.lookYaw - deltaX * 0.006, -0.95, 0.95);
-  activePlayer.lookPitch = clamp(activePlayer.lookPitch - deltaY * 0.006, -1.2, 0.42);
-  lookInput.lastX = event.clientX;
-  lookInput.lastY = event.clientY;
-  sendInputToServer();
-});
+  joystickEl.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== input.pointerId) return;
+    updateJoystick(event);
+  });
 
-lookPadEl.addEventListener("pointerup", resetLookPad);
-lookPadEl.addEventListener("pointercancel", resetLookPad);
+  joystickEl.addEventListener("pointerup", resetJoystick);
+  joystickEl.addEventListener("pointercancel", resetJoystick);
+
+  lookPadEl.addEventListener("pointerdown", (event) => {
+    lookInput.pointerId = event.pointerId;
+    lookInput.lastX = event.clientX;
+    lookInput.lastY = event.clientY;
+    lookPadEl.setPointerCapture(event.pointerId);
+  });
+
+  lookPadEl.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== lookInput.pointerId) return;
+    const deltaX = event.clientX - lookInput.lastX;
+    const deltaY = event.clientY - lookInput.lastY;
+    const activePlayer = players[player.activeId];
+
+    activePlayer.lookYaw = clamp(activePlayer.lookYaw - deltaX * 0.006, -0.95, 0.95);
+    activePlayer.lookPitch = clamp(activePlayer.lookPitch - deltaY * 0.006, -1.2, 0.42);
+    lookInput.lastX = event.clientX;
+    lookInput.lastY = event.clientY;
+    sendInputToServer();
+  });
+
+  lookPadEl.addEventListener("pointerup", resetLookPad);
+  lookPadEl.addEventListener("pointercancel", resetLookPad);
+}
 
 window.addEventListener("resize", resize);
 resize();
@@ -224,6 +264,15 @@ animate();
 
 function animate() {
   const delta = Math.min(clock.getDelta(), 0.04);
+
+  if (isDesktop) {
+    const dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+    const dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+    const len = Math.hypot(dx, dy);
+    input.x = len ? dx / len : 0;
+    input.y = len ? dy / len : 0;
+  }
+
   syncAvatarVisibility();
   updatePlayer(delta);
   interpolateServerPlayers(delta);
