@@ -332,10 +332,11 @@ function updatePlayer(delta) {
 
     applyInputLocally(activePlayer, command, delta);
     network.pendingInputs.push(command);
-    if (network.pendingInputs.length > 90) {
-      network.pendingInputs.splice(0, network.pendingInputs.length - 90);
+    if (network.pendingInputs.length > 120) {
+      network.pendingInputs.splice(0, network.pendingInputs.length - 120);
     }
     sendInputToServer(command);
+
     updateDebugHud(activePlayer);
     return;
   }
@@ -675,25 +676,52 @@ function resetViewForNewRound(serverPlayers) {
 }
 
 function reconcileActivePlayer(slot, ackSeq) {
-  network.pendingInputs = network.pendingInputs.filter((command) => command.seq > ackSeq);
+  network.pendingInputs = network.pendingInputs.filter((cmd) => cmd.seq > ackSeq);
 
-  const current = slot.avatar.position;
-  const server = slot.serverPosition;
-  const error = current.distanceTo(server);
-
-  if (network.roundStatus === "goal" || error > 2.2) {
-    current.copy(server);
+  if (network.roundStatus === "goal") {
+    slot.avatar.position.copy(slot.serverPosition);
     slot.avatar.rotation.y = slot.serverRotationY;
     slot.avatar.children[0].rotation.z = slot.serverBodyTilt;
     network.pendingInputs.length = 0;
     return;
   }
 
-  if (error > 0.03) {
-    current.lerp(server, error > 0.45 ? 0.22 : 0.08);
+  // Re-simulate from authoritative server position applying all unacknowledged inputs.
+  // With correct prediction this produces a position very close to current, so correction is invisible.
+  let px = slot.serverPosition.x;
+  let pz = slot.serverPosition.z;
+  const savedYaw = slot.lookYaw;
+
+  for (const cmd of network.pendingInputs) {
+    slot.lookYaw = cmd.lookYaw;
+    const lookDir = getSlotLookDirection(slot);
+    const fwdX = lookDir.x;
+    const fwdZ = lookDir.z;
+    const moveX = (-cmd.y) * fwdX - cmd.x * fwdZ;
+    const moveZ = (-cmd.y) * fwdZ + cmd.x * fwdX;
+    const moveLen = Math.hypot(moveX, moveZ);
+    const maxSpeed = cmd.isRunning ? player.maxRunSpeed : player.maxWalkSpeed;
+    const speed = (cmd.y || cmd.x) ? maxSpeed * Math.min(Math.hypot(cmd.x, cmd.y), 1) : 0;
+    const vx = moveLen > 0.001 ? (moveX / moveLen) * speed : 0;
+    const vz = moveLen > 0.001 ? (moveZ / moveLen) * speed : 0;
+    const next = movePlayerWithBarriers(slot, px, pz, vx * cmd.delta, vz * cmd.delta);
+    px = next.x;
+    pz = next.z;
   }
 
-  slot.avatar.rotation.y = lerpAngle(slot.avatar.rotation.y, slot.serverRotationY, 0.12);
+  slot.lookYaw = savedYaw;
+
+  const dx = px - slot.avatar.position.x;
+  const dz = pz - slot.avatar.position.z;
+  const err = Math.hypot(dx, dz);
+
+  if (err > 2.5) {
+    slot.avatar.position.x = px;
+    slot.avatar.position.z = pz;
+  } else if (err > 0.015) {
+    slot.avatar.position.x += dx * 0.25;
+    slot.avatar.position.z += dz * 0.25;
+  }
 }
 
 function interpolateServerPlayers(delta) {
