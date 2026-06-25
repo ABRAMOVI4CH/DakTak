@@ -14,7 +14,19 @@
         </div>
       </section>
       <canvas id="game" aria-label="3D карта"></canvas>
-      <section id="joinScreen" class="join-screen" aria-label="Выбор игрока">
+      <div id="preloader" class="preloader" aria-live="polite">
+        <div class="preloader-bg"></div>
+        <div class="preloader-content">
+          <div class="preloader-logo">
+            <span class="preloader-logo-dak">Dak</span><span class="preloader-logo-tak">Tak</span>
+          </div>
+          <div class="preloader-tagline">Командная 3D игра</div>
+          <div class="preloader-spinner"><div></div><div></div><div></div><div></div></div>
+          <div id="preloaderStatus" class="preloader-status">Подключение к серверу...</div>
+        </div>
+      </div>
+
+      <section id="joinScreen" class="join-screen hidden" aria-label="Выбор игрока">
         <div class="join-panel">
           <div class="join-title">Выбери игрока</div>
           <div class="join-grid">

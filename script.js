@@ -11,6 +11,8 @@ const multiplierEl = document.querySelector("#multiplier");
 const joinScreenEl = document.querySelector("#joinScreen");
 const joinStatusEl = document.querySelector("#joinStatus");
 const joinButtons = document.querySelectorAll("[data-join-player]");
+const preloaderEl = document.querySelector("#preloader");
+const preloaderStatusEl = document.querySelector("#preloaderStatus");
 
 const tileCount = 12;
 const tileSize = 2;
@@ -424,7 +426,13 @@ function connectToServer() {
 
   socket.addEventListener("open", () => {
     network.connected = true;
-    joinStatusEl.textContent = "Выбери свободного игрока";
+    preloaderStatusEl.textContent = "Соединение установлено";
+    setTimeout(() => {
+      preloaderEl.classList.add("fade-out");
+      preloaderEl.addEventListener("transitionend", () => preloaderEl.remove(), { once: true });
+      joinScreenEl.classList.remove("hidden");
+      joinStatusEl.textContent = "Выбери свободного игрока";
+    }, 500);
   });
 
   socket.addEventListener("message", (event) => {
@@ -456,13 +464,21 @@ function connectToServer() {
 
   socket.addEventListener("close", () => {
     network.connected = false;
-    joinStatusEl.textContent = "Сервер отключён";
-    if (!player.hasJoined) joinScreenEl.classList.remove("hidden");
+    if (preloaderEl) {
+      preloaderStatusEl.textContent = "Сервер недоступен";
+      preloaderStatusEl.classList.add("error");
+    } else {
+      joinStatusEl.textContent = "Сервер отключён";
+      if (!player.hasJoined) joinScreenEl.classList.remove("hidden");
+    }
   });
 
   socket.addEventListener("error", () => {
     network.connected = false;
-    joinStatusEl.textContent = "Нет соединения с сервером";
+    if (preloaderEl) {
+      preloaderStatusEl.textContent = "Ошибка соединения";
+      preloaderStatusEl.classList.add("error");
+    }
   });
 }
 
