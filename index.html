@@ -142,6 +142,25 @@
         </div>
       </section>
 
+      <!-- Pause Menu -->
+      <section id="pauseMenu" class="pause-menu hidden" aria-label="Пауза">
+        <div class="pause-panel">
+          <div class="pause-title">ПАУЗА</div>
+          <div class="pause-settings">
+            <div class="settings-row">
+              <label>Громкость музыки</label>
+              <input id="pauseMusicVol" type="range" min="0" max="100" value="55" />
+            </div>
+            <div class="settings-row">
+              <label>Громкость голоса</label>
+              <input id="pauseVoiceVol" type="range" min="0" max="100" value="80" />
+            </div>
+          </div>
+          <button id="pauseResume" class="menu-btn menu-btn-play" type="button">ПРОДОЛЖИТЬ</button>
+          <button id="pauseLeave" class="menu-btn menu-btn-danger" type="button">ВЫЙТИ</button>
+        </div>
+      </section>
+
       <!-- Voice Chat UI -->
       <div id="voiceSpeakers" class="voice-speakers"></div>
       <button id="voiceMicBtn" class="voice-mic-btn hidden" type="button" aria-label="Голосовой чат">

@@ -972,6 +972,53 @@ button {
 
 .menu-btn-dev.hidden { display: none; }
 
+.menu-btn-danger {
+  background: linear-gradient(135deg, #d83b44, #c0303a);
+  color: #fff;
+  box-shadow:
+    inset 0 -4px 0 rgba(0, 0, 0, 0.2),
+    0 6px 18px rgba(216, 59, 68, 0.25);
+}
+
+/* ── Pause Menu ── */
+
+.pause-menu {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(16px);
+}
+
+.pause-menu.hidden { display: none; }
+
+.pause-panel {
+  width: min(340px, 92vw);
+  padding: 28px 24px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(11, 11, 11, 0.96);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pause-title {
+  font-size: 28px;
+  font-weight: 900;
+  text-align: center;
+  letter-spacing: 0.06em;
+}
+
+.pause-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 /* ── Voice Chat ── */
 
 .voice-speakers {

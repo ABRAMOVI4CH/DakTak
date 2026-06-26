@@ -39,6 +39,14 @@ const roomLobbyStatusEl = document.querySelector("#roomLobbyStatus");
 const devStartBtn = document.querySelector("#devStartBtn");
 const lobbySlots = document.querySelectorAll("[data-lobby-slot]");
 
+// Pause UI
+const pauseMenuEl = document.querySelector("#pauseMenu");
+const pauseResumeBtn = document.querySelector("#pauseResume");
+const pauseLeaveBtn = document.querySelector("#pauseLeave");
+const pauseMusicVolEl = document.querySelector("#pauseMusicVol");
+const pauseVoiceVolEl = document.querySelector("#pauseVoiceVol");
+let isPaused = false;
+
 const pingTracker = {
   sentTimes: new Map(),
   value: null,
@@ -336,9 +344,67 @@ devStartBtn.addEventListener("click", () => {
   }
 });
 
+// Pause menu
+function openPause() {
+  if (!player.hasJoined || isPaused) return;
+  isPaused = true;
+  pauseMenuEl.classList.remove("hidden");
+  pauseMusicVolEl.value = Math.round(musicBaseVolume * 100);
+  pauseVoiceVolEl.value = Math.round(voiceState.voiceVolume * 100);
+  if (isDesktop && document.pointerLockElement) document.exitPointerLock();
+}
+
+function closePause() {
+  if (!isPaused) return;
+  isPaused = false;
+  pauseMenuEl.classList.add("hidden");
+}
+
+function leaveGame() {
+  closePause();
+  player.hasJoined = false;
+  updateTeamBadge();
+  voiceDisconnectAll();
+  voiceMicBtn.classList.add("hidden");
+  if (network.connected && network.socket?.readyState === WebSocket.OPEN) {
+    network.socket.send(JSON.stringify({ type: "leaveRoom" }));
+  }
+  mainMenuEl.classList.remove("hidden");
+}
+
+pauseResumeBtn.addEventListener("click", closePause);
+pauseLeaveBtn.addEventListener("click", leaveGame);
+
+pauseMusicVolEl.addEventListener("input", () => {
+  const vol = pauseMusicVolEl.value / 100;
+  musicBaseVolume = vol;
+  bgMusic.volume = voiceState.speakers.size > 0 ? vol * MUSIC_DUCK_FACTOR : vol;
+  localStorage.setItem("daktak_musicVol", vol);
+  settingMusicVolEl.value = pauseMusicVolEl.value;
+});
+
+pauseVoiceVolEl.addEventListener("input", () => {
+  voiceState.voiceVolume = pauseVoiceVolEl.value / 100;
+  localStorage.setItem("daktak_voiceVol", voiceState.voiceVolume);
+  voiceState.peers.forEach((peer) => {
+    if (peer.audioEl) peer.audioEl.volume = voiceState.voiceVolume;
+  });
+  settingVoiceVolEl.value = pauseVoiceVolEl.value;
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.code === "Escape") {
+    if (isPaused) {
+      closePause();
+    } else if (player.hasJoined) {
+      openPause();
+    }
+  }
+});
+
 if (isDesktop) {
   canvas.addEventListener("click", () => {
-    if (player.hasJoined) canvas.requestPointerLock();
+    if (player.hasJoined && !isPaused) canvas.requestPointerLock();
   });
 
   document.addEventListener("pointerlockchange", () => {
@@ -347,7 +413,7 @@ if (isDesktop) {
   });
 
   document.addEventListener("mousemove", (event) => {
-    if (!isPointerLocked || !player.hasJoined) return;
+    if (!isPointerLocked || !player.hasJoined || isPaused) return;
     const activePlayer = players[player.activeId];
     if (!activePlayer) return;
     activePlayer.lookYaw -= event.movementX * 0.004;
@@ -358,7 +424,7 @@ if (isDesktop) {
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.repeat) return;
+    if (event.repeat || isPaused) return;
     if (event.code === "KeyW" || event.code === "ArrowUp") keys.w = true;
     if (event.code === "KeyA" || event.code === "ArrowLeft") keys.a = true;
     if (event.code === "KeyS" || event.code === "ArrowDown") keys.s = true;
