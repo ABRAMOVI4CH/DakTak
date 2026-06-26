@@ -47,6 +47,11 @@ const pauseMusicVolEl = document.querySelector("#pauseMusicVol");
 const pauseVoiceVolEl = document.querySelector("#pauseVoiceVol");
 let isPaused = false;
 
+// Countdown UI
+const countdownEl = document.querySelector("#countdown");
+const countdownNumEl = document.querySelector("#countdownNum");
+let isCountdown = false;
+
 const pingTracker = {
   sentTimes: new Map(),
   value: null,
@@ -404,7 +409,7 @@ document.addEventListener("keydown", (event) => {
 
 if (isDesktop) {
   canvas.addEventListener("click", () => {
-    if (player.hasJoined && !isPaused) canvas.requestPointerLock();
+    if (player.hasJoined && !isPaused && !isCountdown) canvas.requestPointerLock();
   });
 
   document.addEventListener("pointerlockchange", () => {
@@ -413,7 +418,7 @@ if (isDesktop) {
   });
 
   document.addEventListener("mousemove", (event) => {
-    if (!isPointerLocked || !player.hasJoined || isPaused) return;
+    if (!isPointerLocked || !player.hasJoined || isPaused || isCountdown) return;
     const activePlayer = players[player.activeId];
     if (!activePlayer) return;
     activePlayer.lookYaw -= event.movementX * 0.004;
@@ -424,7 +429,7 @@ if (isDesktop) {
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.repeat || isPaused) return;
+    if (event.repeat || isPaused || isCountdown) return;
     if (event.code === "KeyW" || event.code === "ArrowUp") keys.w = true;
     if (event.code === "KeyA" || event.code === "ArrowLeft") keys.a = true;
     if (event.code === "KeyS" || event.code === "ArrowDown") keys.s = true;
@@ -529,9 +534,9 @@ function animate() {
 function updatePlayer(delta) {
   const activePlayer = players[player.activeId];
   const maxSpeed = player.isRunning ? player.maxRunSpeed : player.maxWalkSpeed;
-  player.speed = player.hasJoined && (input.y || input.x) ? maxSpeed * Math.min(Math.hypot(input.x, input.y), 1) : 0;
+  player.speed = player.hasJoined && !isCountdown && (input.y || input.x) ? maxSpeed * Math.min(Math.hypot(input.x, input.y), 1) : 0;
 
-  if (!player.hasJoined) {
+  if (!player.hasJoined || isCountdown) {
     updateDebugHud(activePlayer);
     return;
   }
@@ -731,10 +736,36 @@ function connectToServer() {
 
     if (message.type === "gameStarted") {
       roomLobbyEl.classList.add("hidden");
+      isCountdown = true;
       setActivePlayer(message.activeId, true);
-      sendInputToServer();
       voiceMicBtn.classList.remove("hidden");
       initVoice();
+      return;
+    }
+
+    if (message.type === "countdown") {
+      if (message.value > 0) {
+        countdownEl.classList.remove("hidden");
+        // Re-trigger animation by cloning
+        const fresh = countdownNumEl.cloneNode(false);
+        fresh.textContent = message.value;
+        fresh.id = "countdownNum";
+        countdownNumEl.replaceWith(fresh);
+        // Update our reference
+        Object.defineProperty(window, '__cdNum', { value: fresh, writable: true, configurable: true });
+      } else {
+        // Countdown finished — GO!
+        const numEl = document.querySelector("#countdownNum");
+        const fresh = numEl.cloneNode(false);
+        fresh.textContent = "GO";
+        fresh.id = "countdownNum";
+        numEl.replaceWith(fresh);
+        setTimeout(() => {
+          countdownEl.classList.add("hidden");
+          isCountdown = false;
+          sendInputToServer();
+        }, 800);
+      }
       return;
     }
 

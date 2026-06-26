@@ -100,6 +100,7 @@ function createRoom(name, adminId) {
     tickInterval: null,
     sendInterval: null,
     kickInterval: null,
+    countdownInterval: null,
   };
   rooms.set(roomId, room);
   return room;
@@ -115,34 +116,53 @@ function destroyRoom(roomId) {
 }
 
 function startRoomGame(room) {
-  if (room.status === "playing") return;
-  room.status = "playing";
+  if (room.status === "playing" || room.status === "countdown") return;
+  room.status = "countdown";
   room.score = { blue: 0, red: 0 };
   room.goalState = { blue: false, red: false };
   room.lastGoal = null;
-  resetRoomRound(room);
 
-  room.tickInterval = setInterval(() => updateRoomGame(room, 1 / tickRate), 1000 / tickRate);
-  room.sendInterval = setInterval(() => broadcastRoomState(room), 1000 / sendRate);
-  room.kickInterval = setInterval(() => kickInactiveRoomClients(room), 2000);
-
-  // Tell all clients the game started, assign their slots
+  // Tell all clients to show countdown, assign their slots
   room.clients.forEach((client) => {
     if (client.activeId) {
       send(client.socket, { type: "gameStarted", activeId: client.activeId });
     }
   });
 
-  broadcastRoomState(room);
+  // Broadcast countdown: 3, 2, 1
+  let count = 3;
+  broadcastToRoom(room, { type: "countdown", value: count });
+
+  room.countdownInterval = setInterval(() => {
+    count--;
+    if (count > 0) {
+      broadcastToRoom(room, { type: "countdown", value: count });
+    } else {
+      clearInterval(room.countdownInterval);
+      room.countdownInterval = null;
+
+      room.status = "playing";
+      resetRoomRound(room);
+
+      room.tickInterval = setInterval(() => updateRoomGame(room, 1 / tickRate), 1000 / tickRate);
+      room.sendInterval = setInterval(() => broadcastRoomState(room), 1000 / sendRate);
+      room.kickInterval = setInterval(() => kickInactiveRoomClients(room), 2000);
+
+      broadcastToRoom(room, { type: "countdown", value: 0 });
+      broadcastRoomState(room);
+    }
+  }, 1000);
 }
 
 function stopRoomGame(room) {
   clearInterval(room.tickInterval);
   clearInterval(room.sendInterval);
   clearInterval(room.kickInterval);
+  clearInterval(room.countdownInterval);
   room.tickInterval = null;
   room.sendInterval = null;
   room.kickInterval = null;
+  room.countdownInterval = null;
   room.status = "lobby";
   room.round = { status: "playing", resetAt: 0, startedAt: 0 };
 }

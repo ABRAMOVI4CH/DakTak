@@ -980,6 +980,50 @@ button {
     0 6px 18px rgba(216, 59, 68, 0.25);
 }
 
+/* ── Countdown ── */
+
+.countdown {
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.countdown.hidden { display: none; }
+
+.countdown-num {
+  font-size: clamp(120px, 30vw, 240px);
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+  text-shadow:
+    0 0 60px rgba(100, 120, 221, 0.6),
+    0 0 120px rgba(216, 59, 68, 0.4);
+  animation: countdown-pop 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes countdown-pop {
+  0% {
+    opacity: 0;
+    transform: scale(2.5);
+    filter: blur(8px);
+  }
+  20% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  60% {
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
 /* ── Pause Menu ── */
 
 .pause-menu {
