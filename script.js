@@ -39,6 +39,23 @@ const roomLobbyStatusEl = document.querySelector("#roomLobbyStatus");
 const devStartBtn = document.querySelector("#devStartBtn");
 const lobbySlots = document.querySelectorAll("[data-lobby-slot]");
 
+
+// Cases UI
+const casesPanelEl = document.querySelector("#casesPanel");
+const casesBackBtn = document.querySelector("#casesBack");
+const menuCasesBtn = document.querySelector("#menuCases");
+const balanceAmountEl = document.querySelector("#balanceAmount");
+const casesBalanceAmountEl = document.querySelector("#casesBalanceAmount");
+const caseOpeningEl = document.querySelector("#caseOpening");
+const caseOpeningIconEl = document.querySelector("#caseOpeningIcon");
+const caseOpeningRewardEl = document.querySelector("#caseOpeningReward");
+const caseCards = document.querySelectorAll("[data-case]");
+let playerBalance = parseInt(localStorage.getItem("daktak_balance") ?? "100");
+let caseOpening = false;
+
+const caseMusic = new Audio("/music.mp3");
+caseMusic.loop = false;
+caseMusic.volume = 0.5;
 // Pause UI
 const pauseMenuEl = document.querySelector("#pauseMenu");
 const pauseResumeBtn = document.querySelector("#pauseResume");
@@ -216,6 +233,7 @@ Object.entries(players).forEach(([id, slot]) => {
   slot.id = id;
   slot.lookYaw = 0;
   slot.lookPitch = 0;
+  slot.vy = 0;
   slot.serverPosition = new THREE.Vector3();
   slot.serverRotationY = 0;
   slot.serverBodyTilt = 0;
@@ -256,7 +274,7 @@ const lookInput = {
 };
 
 const isDesktop = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-const keys = { w: false, a: false, s: false, d: false };
+const keys = { w: false, a: false, s: false, d: false, space: false };
 const pointerHintEl = document.querySelector("#pointerHint");
 let isPointerLocked = false;
 
@@ -296,6 +314,72 @@ menuSettingsBtn.addEventListener("click", () => {
 settingsBackBtn.addEventListener("click", () => {
   settingsPanelEl.classList.add("hidden");
 });
+
+// Cases
+const CASE_CONFIGS = {
+  common:    { min: 10,  max: 50,   rarity: "common" },
+  rare:      { min: 50,  max: 200,  rarity: "rare" },
+  epic:      { min: 200, max: 500,  rarity: "epic" },
+  legendary: { min: 500, max: 1000, rarity: "legendary" },
+};
+
+function updateBalanceUI() {
+  balanceAmountEl.textContent = playerBalance;
+  casesBalanceAmountEl.textContent = playerBalance;
+  localStorage.setItem("daktak_balance", playerBalance);
+}
+
+function openCase(type) {
+  if (caseOpening) return;
+  caseOpening = true;
+
+  const cfg = CASE_CONFIGS[type];
+  const reward = Math.floor(Math.random() * (cfg.max - cfg.min + 1)) + cfg.min;
+
+  caseMusic.currentTime = 0;
+  caseMusic.play().catch(() => {});
+
+  caseOpeningEl.classList.remove("hidden");
+  caseOpeningIconEl.className = "case-opening-icon";
+  caseOpeningRewardEl.className = "case-opening-reward";
+  caseOpeningRewardEl.textContent = "";
+
+  setTimeout(() => {
+    caseOpeningIconEl.classList.add("opened");
+
+    setTimeout(() => {
+      playerBalance += reward;
+      updateBalanceUI();
+
+      caseOpeningRewardEl.textContent = `+${reward} \u2733`;
+      caseOpeningRewardEl.classList.add("visible", `rarity-${cfg.rarity}`);
+
+      setTimeout(() => {
+        caseOpeningEl.classList.add("hidden");
+        caseOpening = false;
+        caseMusic.pause();
+      }, 1800);
+    }, 400);
+  }, 600);
+}
+
+menuCasesBtn.addEventListener("click", () => {
+  updateBalanceUI();
+  casesPanelEl.classList.remove("hidden");
+});
+
+casesBackBtn.addEventListener("click", () => {
+  casesPanelEl.classList.add("hidden");
+  caseMusic.pause();
+});
+
+caseCards.forEach((card) => {
+  card.addEventListener("click", () => {
+    openCase(card.dataset.case);
+  });
+});
+
+updateBalanceUI();
 
 settingMusicVolEl.addEventListener("input", () => {
   const vol = settingMusicVolEl.value / 100;
@@ -434,6 +518,7 @@ if (isDesktop) {
     if (event.code === "KeyA" || event.code === "ArrowLeft") keys.a = true;
     if (event.code === "KeyS" || event.code === "ArrowDown") keys.s = true;
     if (event.code === "KeyD" || event.code === "ArrowRight") keys.d = true;
+    if (event.code === "Space") keys.space = true;
   });
 
   document.addEventListener("keyup", (event) => {
@@ -441,6 +526,7 @@ if (isDesktop) {
     if (event.code === "KeyA" || event.code === "ArrowLeft") keys.a = false;
     if (event.code === "KeyS" || event.code === "ArrowDown") keys.s = false;
     if (event.code === "KeyD" || event.code === "ArrowRight") keys.d = false;
+    if (event.code === "Space") keys.space = false;
   });
 
   document.addEventListener("keydown", (event) => {
@@ -547,6 +633,7 @@ function updatePlayer(delta) {
       delta,
       x: input.x,
       y: input.y,
+      jump: keys.space,
       isRunning: player.isRunning,
       lookYaw: activePlayer.lookYaw,
       lookPitch: activePlayer.lookPitch,
@@ -563,7 +650,7 @@ function updatePlayer(delta) {
     return;
   }
 
-  applyInputLocally(activePlayer, { x: input.x, y: input.y, isRunning: player.isRunning }, delta);
+  applyInputLocally(activePlayer, { x: input.x, y: input.y, jump: keys.space, isRunning: player.isRunning }, delta);
 
   updateDebugHud(activePlayer);
 }
@@ -598,7 +685,23 @@ function applyInputLocally(slot, command, delta) {
 
   slot.avatar.position.x = nextPosition.x;
   slot.avatar.position.z = nextPosition.z;
-  slot.avatar.position.y = slot.type === "tower" ? towerPlayerY : 0;
+
+  // Jump physics (field players only)
+  const groundY = slot.type === "tower" ? towerPlayerY : 0;
+  if (slot.type !== "tower") {
+    const onGround = slot.avatar.position.y <= groundY + 0.001;
+    if (command.jump && onGround) {
+      slot.vy = 7;
+    }
+    slot.vy -= 22 * delta; // gravity
+    slot.avatar.position.y += slot.vy * delta;
+    if (slot.avatar.position.y <= groundY) {
+      slot.avatar.position.y = groundY;
+      slot.vy = 0;
+    }
+  } else {
+    slot.avatar.position.y = groundY;
+  }
 
   if (speed > 0.05) {
     slot.avatar.rotation.y = Math.atan2(slot.velocity.x, slot.velocity.y);
@@ -911,6 +1014,7 @@ function sendInputToServer(command = null) {
     seq,
     x: payload.x,
     y: payload.y,
+    jump: payload.jump || false,
     isRunning: payload.isRunning,
     lookYaw: payload.lookYaw ?? activePlayer.lookYaw,
     lookPitch: payload.lookPitch ?? activePlayer.lookPitch,
@@ -943,6 +1047,7 @@ function applyServerState(state) {
     slot.serverPosition.set(data.x, data.y, data.z);
     slot.serverRotationY = data.rotationY ?? slot.serverRotationY;
     slot.serverBodyTilt = data.bodyTilt ?? 0;
+    slot.serverVy = data.vy ?? 0;
     slot.hasServerState = true;
 
     if (id === player.activeId && player.hasJoined) {
@@ -1029,6 +1134,9 @@ function reconcileActivePlayer(slot, ackSeq) {
   // With correct prediction this produces a position very close to current, so correction is invisible.
   let px = slot.serverPosition.x;
   let pz = slot.serverPosition.z;
+  let py = slot.serverPosition.y;
+  let vy = slot.serverVy || 0;
+  const groundY = slot.type === "tower" ? towerPlayerY : 0;
   const savedYaw = slot.lookYaw;
 
   for (const cmd of network.pendingInputs) {
@@ -1046,6 +1154,13 @@ function reconcileActivePlayer(slot, ackSeq) {
     const next = movePlayerWithBarriers(slot, px, pz, vx * cmd.delta, vz * cmd.delta);
     px = next.x;
     pz = next.z;
+    // Jump reconciliation
+    if (slot.type !== "tower") {
+      if (cmd.jump && py <= groundY + 0.001) vy = 7;
+      vy -= 22 * cmd.delta;
+      py += vy * cmd.delta;
+      if (py <= groundY) { py = groundY; vy = 0; }
+    }
   }
 
   slot.lookYaw = savedYaw;
@@ -1060,6 +1175,12 @@ function reconcileActivePlayer(slot, ackSeq) {
   } else if (err > 0.015) {
     slot.avatar.position.x += dx * 0.25;
     slot.avatar.position.z += dz * 0.25;
+  }
+
+  // Apply reconciled Y position
+  if (slot.type !== "tower") {
+    slot.avatar.position.y = py;
+    slot.vy = vy;
   }
 }
 
@@ -2203,6 +2324,7 @@ async function initVoice() {
   try {
     voiceState.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     voiceState.localStream.getAudioTracks().forEach((t) => { t.enabled = false; });
+    voiceAddStreamToExistingPeers();
   } catch {
     // mic permission denied - voice won't work
   }
@@ -2240,13 +2362,17 @@ function voiceSetTalking(talking) {
 }
 
 function voiceConnectToPeer(targetClientId) {
-  if (!voiceState.localStream || voiceState.peers.has(targetClientId) || targetClientId === localClientId) return;
+  if (voiceState.peers.has(targetClientId) || targetClientId === localClientId) return null;
 
   const pc = new RTCPeerConnection(rtcConfig);
-  const peer = { pc, audioEl: null, targetClientId };
+  const peer = { pc, audioEl: null, targetClientId, senderAdded: false };
   voiceState.peers.set(targetClientId, peer);
 
-  voiceState.localStream.getTracks().forEach((track) => pc.addTrack(track, voiceState.localStream));
+  // Add local tracks if available now
+  if (voiceState.localStream) {
+    voiceState.localStream.getTracks().forEach((track) => pc.addTrack(track, voiceState.localStream));
+    peer.senderAdded = true;
+  }
 
   pc.onicecandidate = (e) => {
     if (e.candidate && network.socket?.readyState === WebSocket.OPEN) {
@@ -2271,11 +2397,22 @@ function voiceConnectToPeer(targetClientId) {
   return peer;
 }
 
+// When localStream becomes available, add tracks to existing peers
+function voiceAddStreamToExistingPeers() {
+  if (!voiceState.localStream) return;
+  voiceState.peers.forEach((peer) => {
+    if (!peer.senderAdded) {
+      voiceState.localStream.getTracks().forEach((track) => peer.pc.addTrack(track, voiceState.localStream));
+      peer.senderAdded = true;
+    }
+  });
+}
+
 async function voiceCreateOffer(targetClientId) {
   const peer = voiceConnectToPeer(targetClientId);
   if (!peer) return;
 
-  const offer = await peer.pc.createOffer();
+  const offer = await peer.pc.createOffer({ offerToReceiveAudio: true });
   await peer.pc.setLocalDescription(offer);
   if (network.socket?.readyState === WebSocket.OPEN) {
     network.socket.send(JSON.stringify({ type: "voiceOffer", targetId: targetClientId, sdp: offer }));
@@ -2283,7 +2420,6 @@ async function voiceCreateOffer(targetClientId) {
 }
 
 async function handleVoiceOffer(message) {
-  if (!voiceState.localStream) return;
   let peer = voiceState.peers.get(message.fromId);
   if (!peer) {
     peer = voiceConnectToPeer(message.fromId);
@@ -2418,7 +2554,7 @@ function escapeHtml(text) {
 }
 
 function voiceConnectToNewPeers(voiceClients) {
-  if (!voiceState.localStream || !player.hasJoined) return;
+  if (!player.hasJoined) return;
   (voiceClients || []).forEach((vc) => {
     if (vc.clientId !== localClientId && !voiceState.peers.has(vc.clientId)) {
       if (localClientId < vc.clientId) {

@@ -649,6 +649,264 @@ button {
   background: #111;
 }
 
+/* ── Balance Display ── */
+
+.balance-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  background: rgba(240, 189, 79, 0.12);
+  border: 1px solid rgba(240, 189, 79, 0.25);
+}
+
+.balance-icon {
+  color: #f0bd4f;
+  font-size: 18px;
+}
+
+.balance-amount {
+  color: #f0bd4f;
+  font-size: 18px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.menu-btn-cases {
+  background: linear-gradient(135deg, #f0bd4f, #e6a530);
+  color: #111;
+  box-shadow:
+    inset 0 -4px 0 rgba(0, 0, 0, 0.15),
+    0 6px 18px rgba(240, 189, 79, 0.25);
+}
+
+/* ── Cases Panel ── */
+
+.cases-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(14px);
+}
+
+.cases-panel.hidden {
+  display: none;
+}
+
+.cases-box {
+  width: min(420px, 96vw);
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(11, 11, 11, 0.95);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.cases-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cases-title {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.cases-balance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  background: rgba(240, 189, 79, 0.12);
+  border: 1px solid rgba(240, 189, 79, 0.2);
+}
+
+.cases-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.case-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: transform 120ms, box-shadow 120ms;
+  overflow: hidden;
+}
+
+.case-card:hover {
+  transform: translateY(-2px);
+}
+
+.case-card:active {
+  transform: scale(0.96);
+}
+
+.case-glow {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 200ms;
+  pointer-events: none;
+}
+
+.case-card:hover .case-glow {
+  opacity: 1;
+}
+
+.case-icon {
+  font-size: 40px;
+  line-height: 1;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+}
+
+.case-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.case-reward {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.6;
+}
+
+/* Case rarities */
+.case-common {
+  border-color: rgba(174, 184, 175, 0.25);
+}
+.case-common .case-glow {
+  background: radial-gradient(circle at 50% 50%, rgba(174, 184, 175, 0.15), transparent 70%);
+}
+.case-common .case-name { color: #aeb8af; }
+
+.case-rare {
+  border-color: rgba(100, 120, 221, 0.35);
+}
+.case-rare .case-glow {
+  background: radial-gradient(circle at 50% 50%, rgba(100, 120, 221, 0.2), transparent 70%);
+}
+.case-rare .case-name { color: #6478dd; }
+
+.case-epic {
+  border-color: rgba(163, 80, 221, 0.35);
+}
+.case-epic .case-glow {
+  background: radial-gradient(circle at 50% 50%, rgba(163, 80, 221, 0.2), transparent 70%);
+}
+.case-epic .case-name { color: #a350dd; }
+
+.case-legendary {
+  border-color: rgba(240, 189, 79, 0.4);
+}
+.case-legendary .case-glow {
+  background: radial-gradient(circle at 50% 50%, rgba(240, 189, 79, 0.25), transparent 70%);
+}
+.case-legendary .case-name { color: #f0bd4f; }
+.case-legendary .case-icon {
+  animation: legendary-glow 2s ease infinite alternate;
+}
+
+@keyframes legendary-glow {
+  from { filter: drop-shadow(0 4px 12px rgba(240, 189, 79, 0.3)); }
+  to { filter: drop-shadow(0 4px 20px rgba(240, 189, 79, 0.7)); }
+}
+
+/* Case opening overlay */
+.case-opening {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.92);
+  border-radius: 12px;
+}
+
+.case-opening.hidden {
+  display: none;
+}
+
+.case-opening-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  animation: case-open-appear 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.case-opening-icon {
+  font-size: 80px;
+  line-height: 1;
+  animation: case-shake 500ms ease both;
+}
+
+.case-opening-icon.opened {
+  animation: case-explode 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.case-opening-reward {
+  font-size: 36px;
+  font-weight: 900;
+  color: #f0bd4f;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 300ms, transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  text-shadow: 0 0 30px rgba(240, 189, 79, 0.6);
+}
+
+.case-opening-reward.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.case-opening-reward.rarity-common { color: #aeb8af; text-shadow: 0 0 20px rgba(174, 184, 175, 0.4); }
+.case-opening-reward.rarity-rare { color: #6478dd; text-shadow: 0 0 20px rgba(100, 120, 221, 0.5); }
+.case-opening-reward.rarity-epic { color: #a350dd; text-shadow: 0 0 20px rgba(163, 80, 221, 0.5); }
+.case-opening-reward.rarity-legendary { color: #f0bd4f; text-shadow: 0 0 30px rgba(240, 189, 79, 0.6); }
+
+@keyframes case-open-appear {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes case-shake {
+  0%, 100% { transform: rotate(0deg); }
+  15% { transform: rotate(-12deg) scale(1.1); }
+  30% { transform: rotate(10deg) scale(1.15); }
+  45% { transform: rotate(-8deg) scale(1.1); }
+  60% { transform: rotate(6deg) scale(1.05); }
+  75% { transform: rotate(-3deg); }
+}
+
+@keyframes case-explode {
+  0% { transform: scale(1.2); opacity: 1; }
+  50% { transform: scale(1.8); opacity: 0.5; }
+  100% { transform: scale(0); opacity: 0; }
+}
+
 /* ── Settings Panel ── */
 
 .settings-panel {

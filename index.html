@@ -57,10 +57,15 @@
             <div class="menu-logo">
               <span class="menu-logo-dak">Da</span><span class="menu-logo-tak">Tak</span>
             </div>
+            <div id="balanceDisplay" class="balance-display">
+              <span class="balance-icon">&#9733;</span>
+              <span id="balanceAmount" class="balance-amount">0</span>
+            </div>
             <div class="menu-nickname-row">
               <input id="nicknameInput" class="menu-nickname-input" type="text" maxlength="16" placeholder="Никнейм" autocomplete="off" spellcheck="false" />
             </div>
             <button id="menuPlay" class="menu-btn menu-btn-play" type="button">ИГРАТЬ</button>
+            <button id="menuCases" class="menu-btn menu-btn-cases" type="button">КЕЙСЫ</button>
             <button id="menuSettings" class="menu-btn menu-btn-secondary" type="button">НАСТРОЙКИ</button>
             <div class="menu-server-row">
               <label class="menu-server-label" for="serverSelect">Сервер</label>
@@ -70,6 +75,53 @@
               </select>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- Cases Panel -->
+      <section id="casesPanel" class="cases-panel hidden" aria-label="Кейсы">
+        <div class="cases-box">
+          <div class="cases-header">
+            <div class="cases-title">КЕЙСЫ</div>
+            <div class="cases-balance">
+              <span class="balance-icon">&#9733;</span>
+              <span id="casesBalanceAmount" class="balance-amount">0</span>
+            </div>
+          </div>
+          <div class="cases-grid">
+            <button class="case-card case-common" type="button" data-case="common">
+              <div class="case-glow"></div>
+              <div class="case-icon">&#128230;</div>
+              <div class="case-name">Обычный</div>
+              <div class="case-reward">+10-50 &#9733;</div>
+            </button>
+            <button class="case-card case-rare" type="button" data-case="rare">
+              <div class="case-glow"></div>
+              <div class="case-icon">&#128230;</div>
+              <div class="case-name">Редкий</div>
+              <div class="case-reward">+50-200 &#9733;</div>
+            </button>
+            <button class="case-card case-epic" type="button" data-case="epic">
+              <div class="case-glow"></div>
+              <div class="case-icon">&#128230;</div>
+              <div class="case-name">Эпический</div>
+              <div class="case-reward">+200-500 &#9733;</div>
+            </button>
+            <button class="case-card case-legendary" type="button" data-case="legendary">
+              <div class="case-glow"></div>
+              <div class="case-icon">&#128230;</div>
+              <div class="case-name">Легендарный</div>
+              <div class="case-reward">+500-1000 &#9733;</div>
+            </button>
+          </div>
+          <!-- Case opening overlay -->
+          <div id="caseOpening" class="case-opening hidden">
+            <div id="caseOpeningContent" class="case-opening-content">
+              <div id="caseOpeningIcon" class="case-opening-icon">&#128230;</div>
+              <div id="caseOpeningReward" class="case-opening-reward"></div>
+            </div>
+          </div>
+          <button id="casesBack" class="menu-btn menu-btn-secondary" type="button">НАЗАД</button>
         </div>
       </section>
 

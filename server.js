@@ -329,6 +329,7 @@ wss.on("connection", (socket) => {
       client.input.seq = Number(message.seq) || client.input.seq;
       client.input.x = clamp(Number(message.x) || 0, -1, 1);
       client.input.y = clamp(Number(message.y) || 0, -1, 1);
+      client.input.jump = Boolean(message.jump);
       client.input.isRunning = Boolean(message.isRunning);
 
       const slot = room.players[client.activeId];
@@ -392,6 +393,7 @@ function createPlayer(color, type, x, y, z, corner = null) {
     lookPitch: 0,
     rotationY: 0,
     bodyTilt: 0,
+    vy: 0,
   };
 }
 
@@ -428,7 +430,22 @@ function updateRoomGame(room, delta) {
 
     slot.x = nextPosition.x;
     slot.z = nextPosition.z;
-    slot.y = slot.type === "tower" ? towerPlayerY : 0;
+    // Jump physics (field players only)
+    if (slot.type !== "tower") {
+      const groundY = 0;
+      const onGround = slot.y <= groundY + 0.001;
+      if (client.input.jump && onGround) {
+        slot.vy = 7;
+      }
+      slot.vy -= 22 * delta;
+      slot.y += slot.vy * delta;
+      if (slot.y <= groundY) {
+        slot.y = groundY;
+        slot.vy = 0;
+      }
+    } else {
+      slot.y = towerPlayerY;
+    }
     client.lastProcessedSeq = client.input.seq;
 
     if (speed > 0.05) {
