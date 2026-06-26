@@ -59,7 +59,7 @@ const pingTracker = {
 
 const bgMusic = new Audio("/music.mp3");
 bgMusic.loop = true;
-bgMusic.volume = parseFloat(localStorage.getItem("daktak_musicVol") ?? "0.55");
+bgMusic.volume = parseFloat(localStorage.getItem("daktak_musicVol") ?? "0");
 let musicStarted = false;
 let musicBaseVolume = bgMusic.volume;
 let musicDuckRaf = null;
