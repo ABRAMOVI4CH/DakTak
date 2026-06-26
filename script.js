@@ -744,28 +744,7 @@ function connectToServer() {
     }
 
     if (message.type === "countdown") {
-      if (message.value > 0) {
-        countdownEl.classList.remove("hidden");
-        // Re-trigger animation by cloning
-        const fresh = countdownNumEl.cloneNode(false);
-        fresh.textContent = message.value;
-        fresh.id = "countdownNum";
-        countdownNumEl.replaceWith(fresh);
-        // Update our reference
-        Object.defineProperty(window, '__cdNum', { value: fresh, writable: true, configurable: true });
-      } else {
-        // Countdown finished — GO!
-        const numEl = document.querySelector("#countdownNum");
-        const fresh = numEl.cloneNode(false);
-        fresh.textContent = "GO";
-        fresh.id = "countdownNum";
-        numEl.replaceWith(fresh);
-        setTimeout(() => {
-          countdownEl.classList.add("hidden");
-          isCountdown = false;
-          sendInputToServer();
-        }, 800);
-      }
+      showCountdownValue(message.value);
       return;
     }
 
@@ -2408,6 +2387,28 @@ function duckMusicTo(target) {
   };
 
   musicDuckRaf = requestAnimationFrame(step);
+}
+
+function showCountdownValue(value) {
+  countdownEl.classList.remove("hidden");
+  const text = value > 0 ? String(value) : "GO";
+
+  // Remove old number, create fresh element to re-trigger animation
+  const old = countdownEl.querySelector(".countdown-num");
+  if (old) old.remove();
+
+  const el = document.createElement("div");
+  el.className = "countdown-num";
+  el.textContent = text;
+  countdownEl.appendChild(el);
+
+  if (value <= 0) {
+    setTimeout(() => {
+      countdownEl.classList.add("hidden");
+      isCountdown = false;
+      sendInputToServer();
+    }, 800);
+  }
 }
 
 function escapeHtml(text) {
