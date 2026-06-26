@@ -5,19 +5,39 @@ const speedEl = document.querySelector("#speed");
 const positionEl = document.querySelector("#position");
 const scoreRedEl = document.querySelector("#scoreRed");
 const scoreBlueEl = document.querySelector("#scoreBlue");
+const scoreTimerEl = document.querySelector("#scoreTimer");
 const hudTeamRedEl = document.querySelector("#hudTeamRed");
 const hudTeamBlueEl = document.querySelector("#hudTeamBlue");
-const teamBadgeEl = document.querySelector("#teamBadge");
 const pingEl = document.querySelector("#pingDisplay");
 const joystickEl = document.querySelector("#joystick");
 const stickEl = document.querySelector("#stick");
 const lookPadEl = document.querySelector("#lookPad");
 const multiplierEl = document.querySelector("#multiplier");
-const joinScreenEl = document.querySelector("#joinScreen");
-const joinStatusEl = document.querySelector("#joinStatus");
-const joinButtons = document.querySelectorAll("[data-join-player]");
 const preloaderEl = document.querySelector("#preloader");
 const preloaderStatusEl = document.querySelector("#preloaderStatus");
+const mainMenuEl = document.querySelector("#mainMenu");
+const nicknameInputEl = document.querySelector("#nicknameInput");
+const menuPlayBtn = document.querySelector("#menuPlay");
+const menuSettingsBtn = document.querySelector("#menuSettings");
+const settingsPanelEl = document.querySelector("#settingsPanel");
+const settingsBackBtn = document.querySelector("#settingsBack");
+const settingMusicVolEl = document.querySelector("#settingMusicVol");
+const settingVoiceVolEl = document.querySelector("#settingVoiceVol");
+const voiceSpeakersEl = document.querySelector("#voiceSpeakers");
+const voiceMicBtn = document.querySelector("#voiceMicBtn");
+
+// Room UI
+const roomBrowserEl = document.querySelector("#roomBrowser");
+const roomBrowserBackBtn = document.querySelector("#roomBrowserBack");
+const roomNameInputEl = document.querySelector("#roomNameInput");
+const roomCreateBtn = document.querySelector("#roomCreateBtn");
+const roomListEl = document.querySelector("#roomList");
+const roomLobbyEl = document.querySelector("#roomLobby");
+const roomLobbyNameEl = document.querySelector("#roomLobbyName");
+const roomLobbyBackBtn = document.querySelector("#roomLobbyBack");
+const roomLobbyStatusEl = document.querySelector("#roomLobbyStatus");
+const devStartBtn = document.querySelector("#devStartBtn");
+const lobbySlots = document.querySelectorAll("[data-lobby-slot]");
 
 const pingTracker = {
   sentTimes: new Map(),
@@ -26,8 +46,22 @@ const pingTracker = {
 
 const bgMusic = new Audio("/music.mp3");
 bgMusic.loop = true;
-bgMusic.volume = 0.55;
+bgMusic.volume = parseFloat(localStorage.getItem("daktak_musicVol") ?? "0.55");
 let musicStarted = false;
+let musicBaseVolume = bgMusic.volume;
+let musicDuckRaf = null;
+const MUSIC_DUCK_FACTOR = 0.05;
+const MUSIC_DUCK_MS = 120;
+
+let localNickname = localStorage.getItem("daktak_nickname") || "";
+let localClientId = null;
+const voiceState = {
+  localStream: null,
+  peers: new Map(),
+  isTalking: false,
+  speakers: new Map(),
+  voiceVolume: parseFloat(localStorage.getItem("daktak_voiceVol") ?? "0.8"),
+};
 
 let wasKicked = false;
 
@@ -71,6 +105,7 @@ const network = {
   lastGoalAt: 0,
   roundStatus: "playing",
   roundStartedAt: 0,
+  serverTimeOffset: 0,
   inputSeq: 0,
   pendingInputs: [],
   lastInputSentAt: 0,
@@ -212,10 +247,93 @@ const keys = { w: false, a: false, s: false, d: false };
 const pointerHintEl = document.querySelector("#pointerHint");
 let isPointerLocked = false;
 
-joinButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    requestActivePlayer(button.dataset.joinPlayer);
+// Nickname & Main Menu
+nicknameInputEl.value = localNickname;
+settingMusicVolEl.value = Math.round(bgMusic.volume * 100);
+settingVoiceVolEl.value = Math.round(voiceState.voiceVolume * 100);
+
+function saveNicknameAndSend() {
+  localNickname = nicknameInputEl.value.trim().slice(0, 16);
+  if (!localNickname) return false;
+  localStorage.setItem("daktak_nickname", localNickname);
+  if (network.connected && network.socket?.readyState === WebSocket.OPEN) {
+    network.socket.send(JSON.stringify({ type: "nickname", nickname: localNickname }));
+  }
+  return true;
+}
+
+menuPlayBtn.addEventListener("click", () => {
+  if (!saveNicknameAndSend()) {
+    nicknameInputEl.focus();
+    nicknameInputEl.style.borderColor = "#d83b44";
+    setTimeout(() => nicknameInputEl.style.borderColor = "", 600);
+    return;
+  }
+  mainMenuEl.classList.add("hidden");
+  roomBrowserEl.classList.remove("hidden");
+  if (network.connected && network.socket?.readyState === WebSocket.OPEN) {
+    network.socket.send(JSON.stringify({ type: "listRooms" }));
+  }
+});
+
+menuSettingsBtn.addEventListener("click", () => {
+  settingsPanelEl.classList.remove("hidden");
+});
+
+settingsBackBtn.addEventListener("click", () => {
+  settingsPanelEl.classList.add("hidden");
+});
+
+settingMusicVolEl.addEventListener("input", () => {
+  const vol = settingMusicVolEl.value / 100;
+  musicBaseVolume = vol;
+  bgMusic.volume = voiceState.speakers.size > 0 ? vol * MUSIC_DUCK_FACTOR : vol;
+  localStorage.setItem("daktak_musicVol", vol);
+});
+
+settingVoiceVolEl.addEventListener("input", () => {
+  voiceState.voiceVolume = settingVoiceVolEl.value / 100;
+  localStorage.setItem("daktak_voiceVol", voiceState.voiceVolume);
+  voiceState.peers.forEach((peer) => {
+    if (peer.audioEl) peer.audioEl.volume = voiceState.voiceVolume;
   });
+});
+
+// Room Browser
+roomBrowserBackBtn.addEventListener("click", () => {
+  roomBrowserEl.classList.add("hidden");
+  mainMenuEl.classList.remove("hidden");
+});
+
+roomCreateBtn.addEventListener("click", () => {
+  const name = roomNameInputEl.value.trim() || `Комната ${localNickname}`;
+  if (network.connected && network.socket?.readyState === WebSocket.OPEN) {
+    network.socket.send(JSON.stringify({ type: "createRoom", name }));
+  }
+});
+
+// Room Lobby
+roomLobbyBackBtn.addEventListener("click", () => {
+  if (network.connected && network.socket?.readyState === WebSocket.OPEN) {
+    network.socket.send(JSON.stringify({ type: "leaveRoom" }));
+  }
+  roomLobbyEl.classList.add("hidden");
+  roomBrowserEl.classList.remove("hidden");
+});
+
+lobbySlots.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const slotId = btn.dataset.lobbySlot;
+    if (network.connected && network.socket?.readyState === WebSocket.OPEN) {
+      network.socket.send(JSON.stringify({ type: "pickSlot", slotId }));
+    }
+  });
+});
+
+devStartBtn.addEventListener("click", () => {
+  if (network.connected && network.socket?.readyState === WebSocket.OPEN) {
+    network.socket.send(JSON.stringify({ type: "devStart" }));
+  }
 });
 
 if (isDesktop) {
@@ -252,6 +370,17 @@ if (isDesktop) {
     if (event.code === "KeyA" || event.code === "ArrowLeft") keys.a = false;
     if (event.code === "KeyS" || event.code === "ArrowDown") keys.s = false;
     if (event.code === "KeyD" || event.code === "ArrowRight") keys.d = false;
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.code === "KeyK" && !event.repeat && player.hasJoined) {
+      voiceSetTalking(true);
+    }
+  });
+  document.addEventListener("keyup", (event) => {
+    if (event.code === "KeyK") {
+      voiceSetTalking(false);
+    }
   });
 } else {
   joystickEl.addEventListener("pointerdown", (event) => {
@@ -292,6 +421,13 @@ if (isDesktop) {
 
   lookPadEl.addEventListener("pointerup", resetLookPad);
   lookPadEl.addEventListener("pointercancel", resetLookPad);
+
+  voiceMicBtn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    voiceSetTalking(true);
+  });
+  voiceMicBtn.addEventListener("pointerup", () => voiceSetTalking(false));
+  voiceMicBtn.addEventListener("pointercancel", () => voiceSetTalking(false));
 }
 
 window.addEventListener("resize", resize);
@@ -315,6 +451,7 @@ function animate() {
   updateCheatScale(delta);
   updateCamera(delta);
   updateTowerFlashlights();
+  updateScoreTimer();
   if (!network.connected) {
     updateGlobalGoalState();
   }
@@ -470,17 +607,23 @@ function connectToServer() {
 
   socket.addEventListener("open", () => {
     network.connected = true;
+    if (localNickname && network.socket?.readyState === WebSocket.OPEN) {
+      network.socket.send(JSON.stringify({ type: "nickname", nickname: localNickname }));
+    }
     if (preloaderEl) {
       preloaderStatusEl.textContent = "Соединение установлено";
       setTimeout(() => {
         preloaderEl.classList.add("fade-out");
         preloaderEl.addEventListener("transitionend", () => preloaderEl.remove(), { once: true });
-        joinScreenEl.classList.remove("hidden");
-        joinStatusEl.textContent = "Выбери свободного игрока";
+        mainMenuEl.classList.remove("hidden");
       }, 500);
-    } else {
-      joinScreenEl.classList.remove("hidden");
-      joinStatusEl.textContent = "Выбери свободного игрока";
+    } else if (!player.hasJoined) {
+      // Show whatever screen is appropriate
+      if (!roomLobbyEl.classList.contains("hidden") || !roomBrowserEl.classList.contains("hidden")) {
+        // Already showing a room screen
+      } else {
+        mainMenuEl.classList.remove("hidden");
+      }
     }
   });
 
@@ -492,23 +635,86 @@ function connectToServer() {
       return;
     }
 
+    if (message.type === "welcome") {
+      localClientId = message.clientId;
+      return;
+    }
+
+    if (message.type === "roomList") {
+      renderRoomList(message.rooms);
+      return;
+    }
+
+    if (message.type === "roomJoined") {
+      roomBrowserEl.classList.add("hidden");
+      mainMenuEl.classList.add("hidden");
+      roomLobbyEl.classList.remove("hidden");
+      roomLobbyNameEl.textContent = message.roomName;
+      return;
+    }
+
+    if (message.type === "roomError") {
+      // Could show toast, for now just log
+      return;
+    }
+
+    if (message.type === "lobbyState") {
+      updateLobbyUI(message);
+      return;
+    }
+
+    if (message.type === "gameStarted") {
+      roomLobbyEl.classList.add("hidden");
+      setActivePlayer(message.activeId, true);
+      sendInputToServer();
+      voiceMicBtn.classList.remove("hidden");
+      initVoice();
+      return;
+    }
+
+    if (message.type === "backToLobby") {
+      player.hasJoined = false;
+      updateTeamBadge();
+      voiceDisconnectAll();
+      voiceMicBtn.classList.add("hidden");
+      roomBrowserEl.classList.remove("hidden");
+      return;
+    }
+
     if (message.type === "kicked") {
       wasKicked = true;
       player.hasJoined = false;
       updateTeamBadge();
-      return;
-    }
-
-    if (message.type === "activePlayer") {
-      setActivePlayer(message.activeId, true);
-      joinScreenEl.classList.add("hidden");
-      joinStatusEl.textContent = "";
-      sendInputToServer();
+      voiceDisconnectAll();
       return;
     }
 
     if (message.type === "slotRejected") {
-      joinStatusEl.textContent = "Этот игрок уже занят";
+      return;
+    }
+
+    if (message.type === "voiceTalking") {
+      handleVoiceTalkingMessage(message);
+      return;
+    }
+
+    if (message.type === "voiceOffer") {
+      handleVoiceOffer(message);
+      return;
+    }
+
+    if (message.type === "voiceAnswer") {
+      handleVoiceAnswer(message);
+      return;
+    }
+
+    if (message.type === "voiceIce") {
+      handleVoiceIce(message);
+      return;
+    }
+
+    if (message.type === "voiceLeft") {
+      voiceRemovePeer(message.clientId);
       return;
     }
 
@@ -529,20 +735,23 @@ function connectToServer() {
       return;
     }
 
+    voiceDisconnectAll();
+    voiceMicBtn.classList.add("hidden");
+
+    // Hide all overlays
+    roomBrowserEl.classList.add("hidden");
+    roomLobbyEl.classList.add("hidden");
+
     if (wasKicked) {
       wasKicked = false;
       player.hasJoined = false;
       updateTeamBadge();
-      joinStatusEl.textContent = "Вас отключили за неактивность — выбери игрока";
     } else if (player.hasJoined) {
       player.hasJoined = false;
       updateTeamBadge();
-      joinStatusEl.textContent = "Соединение потеряно";
-    } else {
-      joinStatusEl.textContent = "Сервер недоступен";
     }
 
-    joinScreenEl.classList.remove("hidden");
+    mainMenuEl.classList.remove("hidden");
     setTimeout(connectToServer, 2000);
   });
 
@@ -555,15 +764,50 @@ function connectToServer() {
   });
 }
 
-function requestActivePlayer(id) {
-  if (network.connected && network.socket?.readyState === WebSocket.OPEN) {
-    network.socket.send(JSON.stringify({ type: "joinSlot", activeId: id }));
-    joinStatusEl.textContent = "Входим...";
+// Room UI rendering
+function renderRoomList(roomsData) {
+  roomListEl.innerHTML = "";
+  if (!roomsData || roomsData.length === 0) {
+    roomListEl.innerHTML = '<div class="room-list-empty">Нет комнат — создай первую!</div>';
     return;
   }
+  roomsData.forEach((r) => {
+    const item = document.createElement("div");
+    item.className = `room-list-item${r.status === "playing" ? " room-playing" : ""}`;
+    item.innerHTML = `<div><span class="room-item-name">${escapeHtml(r.name)}</span>${r.status === "playing" ? '<span class="room-item-status">В игре</span>' : ""}</div><span class="room-item-count">${r.playerCount}/4</span>`;
+    item.addEventListener("click", () => {
+      if (network.connected && network.socket?.readyState === WebSocket.OPEN) {
+        network.socket.send(JSON.stringify({ type: "joinRoom", roomId: r.id }));
+      }
+    });
+    roomListEl.appendChild(item);
+  });
+}
 
-  setActivePlayer(id, true);
-  joinScreenEl.classList.add("hidden");
+function updateLobbyUI(state) {
+  roomLobbyNameEl.textContent = state.roomName;
+
+  const slotMap = { blue: "lobbySlotBlue", red: "lobbySlotRed", blueTower: "lobbySlotBlueTower", redTower: "lobbySlotRedTower" };
+  lobbySlots.forEach((btn) => {
+    const slotId = btn.dataset.lobbySlot;
+    const slot = state.slots[slotId];
+    const nickEl = btn.querySelector(".lobby-slot-nick");
+    const isMine = slot?.clientId === localClientId;
+    const isEmpty = !slot?.occupied;
+
+    btn.classList.toggle("slot-empty", isEmpty);
+    btn.classList.toggle("slot-mine", isMine);
+    nickEl.textContent = isEmpty ? "Свободно" : (slot.nickname || "???");
+  });
+
+  const count = state.playerCount || 0;
+  if (count >= 4) {
+    roomLobbyStatusEl.textContent = "Все на месте! Запуск...";
+  } else {
+    roomLobbyStatusEl.textContent = `Ожидание игроков ${count}/4`;
+  }
+
+  devStartBtn.classList.toggle("hidden", !state.isAdmin);
 }
 
 function sendInputToServer(command = null) {
@@ -598,6 +842,10 @@ function sendInputToServer(command = null) {
 }
 
 function applyServerState(state) {
+  if (state.now) {
+    network.serverTimeOffset = state.now - Date.now();
+  }
+
   if (state.ackSeq != null) {
     const sentAt = pingTracker.sentTimes.get(state.ackSeq);
     if (sentAt != null) {
@@ -611,7 +859,6 @@ function applyServerState(state) {
     setActivePlayer(state.activeId, true);
   }
 
-  updateJoinButtons(state.slots ?? {});
 
   Object.entries(state.players ?? {}).forEach(([id, data]) => {
     const slot = players[id];
@@ -642,6 +889,8 @@ function applyServerState(state) {
     score.red = state.score.red;
     updateScore();
   }
+
+  voiceConnectToNewPeers(state.voiceClients);
 
   const previousRoundStatus = network.roundStatus;
   const nextRoundStatus = state.round?.status ?? "playing";
@@ -966,23 +1215,12 @@ function setActivePlayer(id, hasJoined = player.hasJoined) {
 }
 
 function updateTeamBadge() {
-  if (!teamBadgeEl) return;
   const activePlayer = players[player.activeId];
   if (!player.hasJoined || !activePlayer) {
-    teamBadgeEl.classList.remove("visible");
     hudTeamRedEl?.classList.remove("is-yours");
     hudTeamBlueEl?.classList.remove("is-yours");
     return;
   }
-
-  const labels = { blue: "Синий", red: "Красный", blueTower: "Башня синих", redTower: "Башня красных" };
-  const label = labels[player.activeId] ?? activePlayer.label;
-  const isBlue = activePlayer.color === "blue";
-
-  teamBadgeEl.classList.remove("badge-blue", "badge-red");
-  teamBadgeEl.classList.add(isBlue ? "badge-blue" : "badge-red");
-  teamBadgeEl.innerHTML = `<span class="team-badge-dot"></span>Вы — ${label}`;
-  teamBadgeEl.classList.add("visible");
 
   hudTeamRedEl?.classList.toggle("is-yours", activePlayer.color === "red");
   hudTeamBlueEl?.classList.toggle("is-yours", activePlayer.color === "blue");
@@ -1001,21 +1239,6 @@ function updatePingDisplay() {
   pingEl.className = `ping-display ${ms < 60 ? "ping-good" : ms < 120 ? "ping-ok" : "ping-bad"}`;
 }
 
-function updateJoinButtons(slots) {
-  joinButtons.forEach((button) => {
-    const id = button.dataset.joinPlayer;
-    const isCurrent = player.hasJoined && id === player.activeId;
-    const isOccupied = Boolean(slots[id]?.occupied) && !isCurrent;
-
-    button.disabled = isOccupied;
-    button.classList.toggle("occupied", isOccupied);
-    button.classList.toggle("selected", isCurrent);
-  });
-
-  if (!player.hasJoined) {
-    joinStatusEl.textContent = network.connected ? "Выбери свободного игрока" : joinStatusEl.textContent;
-  }
-}
 
 function syncAvatarVisibility() {
   Object.entries(players).forEach(([id, slot]) => {
@@ -1376,6 +1599,21 @@ function getGoalEventForPlayer(scoringPlayer, opponent) {
 function updateScore() {
   if (scoreRedEl) scoreRedEl.textContent = score.red;
   if (scoreBlueEl) scoreBlueEl.textContent = score.blue;
+}
+
+function updateScoreTimer() {
+  if (!scoreTimerEl) return;
+
+  if (!network.roundStartedAt) {
+    scoreTimerEl.textContent = "0:00";
+    return;
+  }
+
+  const now = Date.now() + network.serverTimeOffset;
+  const elapsed = Math.max(0, Math.floor((now - network.roundStartedAt) / 1000));
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  scoreTimerEl.textContent = `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 function isPointInPlayerShadow(x, z, targetPlayer, activePlayer) {
@@ -1878,4 +2116,216 @@ function clamp(value, min, max) {
 function lerpAngle(from, to, amount) {
   const delta = Math.atan2(Math.sin(to - from), Math.cos(to - from));
   return from + delta * amount;
+}
+
+// ── Voice Chat ──
+
+const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+async function initVoice() {
+  if (voiceState.localStream) return;
+  try {
+    voiceState.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    voiceState.localStream.getAudioTracks().forEach((t) => { t.enabled = false; });
+  } catch {
+    // mic permission denied - voice won't work
+  }
+}
+
+function voiceSetTalking(talking) {
+  if (!player.hasJoined) return;
+
+  voiceState.isTalking = talking;
+  voiceMicBtn.classList.toggle("talking", talking);
+
+  // Update local speaking indicator immediately without waiting for server echo
+  if (talking) {
+    voiceState.speakers.set("local", { nickname: localNickname || "Я", activeId: player.activeId });
+  } else {
+    voiceState.speakers.delete("local");
+  }
+  updateVoiceSpeakersUI();
+
+  // Enable/disable mic if we have permission
+  if (voiceState.localStream) {
+    voiceState.localStream.getAudioTracks().forEach((t) => { t.enabled = talking; });
+  } else if (talking) {
+    // Try to get mic on first push-to-talk
+    initVoice().then(() => {
+      if (voiceState.localStream && voiceState.isTalking) {
+        voiceState.localStream.getAudioTracks().forEach((t) => { t.enabled = true; });
+      }
+    });
+  }
+
+  if (network.connected && network.socket?.readyState === WebSocket.OPEN) {
+    network.socket.send(JSON.stringify({ type: "voiceTalking", talking }));
+  }
+}
+
+function voiceConnectToPeer(targetClientId) {
+  if (!voiceState.localStream || voiceState.peers.has(targetClientId) || targetClientId === localClientId) return;
+
+  const pc = new RTCPeerConnection(rtcConfig);
+  const peer = { pc, audioEl: null, targetClientId };
+  voiceState.peers.set(targetClientId, peer);
+
+  voiceState.localStream.getTracks().forEach((track) => pc.addTrack(track, voiceState.localStream));
+
+  pc.onicecandidate = (e) => {
+    if (e.candidate && network.socket?.readyState === WebSocket.OPEN) {
+      network.socket.send(JSON.stringify({ type: "voiceIce", targetId: targetClientId, candidate: e.candidate }));
+    }
+  };
+
+  pc.ontrack = (e) => {
+    const audio = new Audio();
+    audio.srcObject = e.streams[0];
+    audio.volume = voiceState.voiceVolume;
+    audio.play().catch(() => {});
+    peer.audioEl = audio;
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+      voiceRemovePeer(targetClientId);
+    }
+  };
+
+  return peer;
+}
+
+async function voiceCreateOffer(targetClientId) {
+  const peer = voiceConnectToPeer(targetClientId);
+  if (!peer) return;
+
+  const offer = await peer.pc.createOffer();
+  await peer.pc.setLocalDescription(offer);
+  if (network.socket?.readyState === WebSocket.OPEN) {
+    network.socket.send(JSON.stringify({ type: "voiceOffer", targetId: targetClientId, sdp: offer }));
+  }
+}
+
+async function handleVoiceOffer(message) {
+  if (!voiceState.localStream) return;
+  let peer = voiceState.peers.get(message.fromId);
+  if (!peer) {
+    peer = voiceConnectToPeer(message.fromId);
+    if (!peer) return;
+  }
+
+  await peer.pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
+  const answer = await peer.pc.createAnswer();
+  await peer.pc.setLocalDescription(answer);
+  if (network.socket?.readyState === WebSocket.OPEN) {
+    network.socket.send(JSON.stringify({ type: "voiceAnswer", targetId: message.fromId, sdp: answer }));
+  }
+}
+
+async function handleVoiceAnswer(message) {
+  const peer = voiceState.peers.get(message.fromId);
+  if (!peer) return;
+  await peer.pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
+}
+
+async function handleVoiceIce(message) {
+  const peer = voiceState.peers.get(message.fromId);
+  if (!peer) return;
+  try {
+    await peer.pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+  } catch {}
+}
+
+function voiceRemovePeer(clientId) {
+  const peer = voiceState.peers.get(clientId);
+  if (!peer) return;
+  peer.pc.close();
+  if (peer.audioEl) {
+    peer.audioEl.pause();
+    peer.audioEl.srcObject = null;
+  }
+  voiceState.peers.delete(clientId);
+  voiceState.speakers.delete(clientId);
+  updateVoiceSpeakersUI();
+}
+
+function voiceDisconnectAll() {
+  voiceState.peers.forEach((peer) => {
+    peer.pc.close();
+    if (peer.audioEl) {
+      peer.audioEl.pause();
+      peer.audioEl.srcObject = null;
+    }
+  });
+  voiceState.peers.clear();
+  voiceState.speakers.clear();
+  voiceState.isTalking = false;
+  if (voiceState.localStream) {
+    voiceState.localStream.getAudioTracks().forEach((t) => { t.enabled = false; });
+  }
+  voiceMicBtn.classList.remove("talking");
+  updateVoiceSpeakersUI();
+}
+
+function handleVoiceTalkingMessage(message) {
+  // Skip own messages — we handle local indicator in voiceSetTalking directly
+  if (message.clientId === localClientId || message.clientId === "local") return;
+  if (message.talking) {
+    voiceState.speakers.set(message.clientId, {
+      nickname: message.nickname || message.activeId || "???",
+      activeId: message.activeId,
+    });
+  } else {
+    voiceState.speakers.delete(message.clientId);
+  }
+  updateVoiceSpeakersUI();
+}
+
+function updateVoiceSpeakersUI() {
+  voiceSpeakersEl.innerHTML = "";
+  voiceState.speakers.forEach((speaker) => {
+    const tag = document.createElement("div");
+    tag.className = "voice-speaker-tag";
+    tag.innerHTML = `<div class="voice-speaker-icon"></div><span class="voice-speaker-name">${escapeHtml(speaker.nickname)}</span>`;
+    voiceSpeakersEl.appendChild(tag);
+  });
+
+  const target = voiceState.speakers.size > 0 ? musicBaseVolume * MUSIC_DUCK_FACTOR : musicBaseVolume;
+  duckMusicTo(target);
+}
+
+function duckMusicTo(target) {
+  if (musicDuckRaf) cancelAnimationFrame(musicDuckRaf);
+
+  const start = bgMusic.volume;
+  const startTime = performance.now();
+
+  const step = (now) => {
+    const t = Math.min((now - startTime) / MUSIC_DUCK_MS, 1);
+    bgMusic.volume = start + (target - start) * t;
+    if (t < 1) {
+      musicDuckRaf = requestAnimationFrame(step);
+    } else {
+      musicDuckRaf = null;
+    }
+  };
+
+  musicDuckRaf = requestAnimationFrame(step);
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function voiceConnectToNewPeers(voiceClients) {
+  if (!voiceState.localStream || !player.hasJoined) return;
+  (voiceClients || []).forEach((vc) => {
+    if (vc.clientId !== localClientId && !voiceState.peers.has(vc.clientId)) {
+      if (localClientId < vc.clientId) {
+        voiceCreateOffer(vc.clientId);
+      }
+    }
+  });
 }

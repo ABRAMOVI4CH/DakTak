@@ -3,34 +3,43 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>DacTac 3D</title>
+    <title>DaTak 3D</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <main class="game-shell" aria-label="DacTac 3D">
+    <main class="game-shell" aria-label="DaTak 3D">
       <section class="hud" aria-label="Статус">
         <div class="scoreboard">
           <div class="score-team score-team-red" id="hudTeamRed">
+            <span class="score-yours">ВЫ</span>
             <span class="score-team-name">КРАСНЫЕ</span>
-            <span class="score-num" id="scoreRed">0</span>
-            <span class="score-yours" id="yoursRed">ВЫ</span>
           </div>
-          <div class="score-mid">:</div>
+          <div class="score-mid">
+            <svg class="score-mid-bg" viewBox="0 0 212 92" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M0 0H211.5L193 22H211.5L193 51.5V76C193 84.8366 185.837 92 177 92H37.5C28.6634 92 21.5 84.8366 21.5 76V51.5L0 22H21.5L0 0Z" fill="#0B0B0B"/>
+            </svg>
+            <div class="score-mid-score" aria-label="Счёт">
+              <span class="score-num" id="scoreRed">0</span>
+              <span class="score-sep">:</span>
+              <span class="score-num" id="scoreBlue">0</span>
+            </div>
+            <div class="score-timer" id="scoreTimer">0:00</div>
+          </div>
           <div class="score-team score-team-blue" id="hudTeamBlue">
-            <span class="score-yours" id="yoursBlue">ВЫ</span>
-            <span class="score-num" id="scoreBlue">0</span>
             <span class="score-team-name">СИНИЕ</span>
+            <span class="score-yours">ВЫ</span>
           </div>
         </div>
-        <div id="teamBadge" class="team-badge"></div>
       </section>
       <div id="pingDisplay" class="ping-display"></div>
       <canvas id="game" aria-label="3D карта"></canvas>
+
+      <!-- Preloader -->
       <div id="preloader" class="preloader" aria-live="polite">
         <div class="preloader-bg"></div>
         <div class="preloader-content">
           <div class="preloader-logo">
-            <span class="preloader-logo-dak">Dak</span><span class="preloader-logo-tak">Tak</span>
+            <span class="preloader-logo-dak">Da</span><span class="preloader-logo-tak">Tak</span>
           </div>
           <div class="preloader-tagline">Командная 3D игра</div>
           <div class="preloader-spinner"><div></div><div></div><div></div><div></div></div>
@@ -38,30 +47,111 @@
         </div>
       </div>
 
-      <section id="joinScreen" class="join-screen hidden" aria-label="Выбор игрока">
-        <div class="join-panel">
-          <div class="join-title">Выбери игрока</div>
-          <div class="join-grid">
-            <button class="join-button color-blue" type="button" data-join-player="blue">
-              <span>1</span>
-              Синий
-            </button>
-            <button class="join-button color-red" type="button" data-join-player="red">
-              <span>2</span>
-              Красный
-            </button>
-            <button class="join-button color-blue" type="button" data-join-player="blueTower">
-              <span>3</span>
-              Синий башня
-            </button>
-            <button class="join-button color-red" type="button" data-join-player="redTower">
-              <span>4</span>
-              Красный башня
-            </button>
+      <!-- Main Menu -->
+      <section id="mainMenu" class="main-menu hidden" aria-label="Главное меню">
+        <div class="menu-island">
+          <svg class="menu-island-bg" viewBox="0 0 380 420" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 0H380L348 28H380L348 68V396C348 408.703 337.703 419 325 419H55C42.297 419 32 408.703 32 396V68L0 28H32L0 0Z" fill="#0B0B0B"/>
+          </svg>
+          <div class="menu-island-content">
+            <div class="menu-logo">
+              <span class="menu-logo-dak">Da</span><span class="menu-logo-tak">Tak</span>
+            </div>
+            <div class="menu-nickname-row">
+              <input id="nicknameInput" class="menu-nickname-input" type="text" maxlength="16" placeholder="Никнейм" autocomplete="off" spellcheck="false" />
+            </div>
+            <button id="menuPlay" class="menu-btn menu-btn-play" type="button">ИГРАТЬ</button>
+            <button id="menuSettings" class="menu-btn menu-btn-secondary" type="button">НАСТРОЙКИ</button>
+            <div class="menu-server-row">
+              <label class="menu-server-label" for="serverSelect">Сервер</label>
+              <select id="serverSelect" class="menu-server-select">
+                <option value="auto">Авто</option>
+                <option value="local">Локальный</option>
+              </select>
+            </div>
           </div>
-          <div id="joinStatus" class="join-status">Подключение к серверу...</div>
         </div>
       </section>
+
+      <!-- Settings Panel -->
+      <section id="settingsPanel" class="settings-panel hidden" aria-label="Настройки">
+        <div class="settings-box">
+          <div class="settings-title">Настройки</div>
+          <div class="settings-row">
+            <label>Громкость музыки</label>
+            <input id="settingMusicVol" type="range" min="0" max="100" value="55" />
+          </div>
+          <div class="settings-row">
+            <label>Громкость голоса</label>
+            <input id="settingVoiceVol" type="range" min="0" max="100" value="80" />
+          </div>
+          <button id="settingsBack" class="menu-btn menu-btn-secondary" type="button">НАЗАД</button>
+        </div>
+      </section>
+
+      <!-- Room Browser -->
+      <section id="roomBrowser" class="room-browser hidden" aria-label="Комнаты">
+        <div class="room-browser-panel">
+          <div class="room-browser-header">
+            <div class="room-browser-title">Комнаты</div>
+            <button id="roomBrowserBack" class="room-header-btn" type="button">Назад</button>
+          </div>
+          <div class="room-create-row">
+            <input id="roomNameInput" class="room-name-input" type="text" maxlength="24" placeholder="Название комнаты" autocomplete="off" spellcheck="false" />
+            <button id="roomCreateBtn" class="room-create-btn" type="button">Создать</button>
+          </div>
+          <div id="roomList" class="room-list">
+            <div class="room-list-empty">Нет комнат — создай первую!</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Room Lobby -->
+      <section id="roomLobby" class="room-lobby hidden" aria-label="Лобби комнаты">
+        <div class="room-lobby-panel">
+          <div class="room-lobby-header">
+            <div id="roomLobbyName" class="room-lobby-name">Комната</div>
+            <button id="roomLobbyBack" class="room-header-btn" type="button">Выйти</button>
+          </div>
+          <div id="roomLobbyStatus" class="room-lobby-status">Ожидание игроков...</div>
+          <div class="room-lobby-teams">
+            <div class="room-lobby-team room-lobby-team-red">
+              <div class="room-lobby-team-label">КРАСНЫЕ</div>
+              <button class="lobby-slot color-red" type="button" data-lobby-slot="red">
+                <span class="lobby-slot-role">Полевой</span>
+                <span class="lobby-slot-nick" id="lobbySlotRed">Свободно</span>
+              </button>
+              <button class="lobby-slot color-red" type="button" data-lobby-slot="redTower">
+                <span class="lobby-slot-role">Башня</span>
+                <span class="lobby-slot-nick" id="lobbySlotRedTower">Свободно</span>
+              </button>
+            </div>
+            <div class="room-lobby-team room-lobby-team-blue">
+              <div class="room-lobby-team-label">СИНИЕ</div>
+              <button class="lobby-slot color-blue" type="button" data-lobby-slot="blue">
+                <span class="lobby-slot-role">Полевой</span>
+                <span class="lobby-slot-nick" id="lobbySlotBlue">Свободно</span>
+              </button>
+              <button class="lobby-slot color-blue" type="button" data-lobby-slot="blueTower">
+                <span class="lobby-slot-role">Башня</span>
+                <span class="lobby-slot-nick" id="lobbySlotBlueTower">Свободно</span>
+              </button>
+            </div>
+          </div>
+          <button id="devStartBtn" class="menu-btn menu-btn-dev hidden" type="button">DEV ЗАПУСК</button>
+        </div>
+      </section>
+
+      <!-- Voice Chat UI -->
+      <div id="voiceSpeakers" class="voice-speakers"></div>
+      <button id="voiceMicBtn" class="voice-mic-btn hidden" type="button" aria-label="Голосовой чат">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </button>
       <div id="multiplier" class="multiplier" aria-live="polite">*2 очки</div>
       <div id="lookPad" class="look-pad" aria-label="Панель обзора"></div>
       <div id="pointerHint" class="pointer-hint">Кликни для управления мышью · Esc — выход</div>
